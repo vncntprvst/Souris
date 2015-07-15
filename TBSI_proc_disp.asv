@@ -18,9 +18,8 @@
 singlechan=0; %by default, read all channels
 
 %% list and order files
-DataDir=uigetdir('C:\Data\TBSI','Select data folder');
-cd(DataDir);
-DirListing=dir(DataDir);
+DirListing=dir(
+uigetdir('C:\Data\TBSI','Select data folder'));
 FileDates=cell2mat({DirListing(:).datenum});
 [~,FDateIdx] = sort(FileDates,'descend');
 DirListing = {DirListing(:).name};

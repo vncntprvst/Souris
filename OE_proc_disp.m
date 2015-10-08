@@ -1,8 +1,9 @@
 %% Process and display data from Open-Ephys recordings  
 
 %% Get file path
-
-cd C:\Data\OpenEphys\PrV25_12_train2_2015-09-10_20-26-30
+% e.g., C:\Data\OpenEphys\PrV25_12_train2_2015-09-10_20-26-30
+dname = uigetdir('C:\Data\OpenEphys\','Open Ephys Reordings');    
+cd(dname);
 
 %% Get Spike data
 %O_E binary format - see also 'load_open_ephys_data.m'
@@ -20,19 +21,60 @@ cd C:\Data\OpenEphys\PrV25_12_train2_2015-09-10_20-26-30
 % KWIK contains metadata about the experiment, as well as event data
 % h5disp('experiment1.kwik','/recordings/');
 SamplingRate=h5readatt('experiment1.kwik','/recordings/0','sample_rate');
+
 % KWX contains the spike data
 % h5disp('experiment1.kwx')
 ChanInfo=h5info('experiment1.kwx');
 
-% get data from one channel
-Chan(5).Units=h5read('experiment1.kwx','/channel_groups/4/recordings');
-Chan(5).SpikeTimes=h5read('experiment1.kwx','/channel_groups/4/time_samples');
-% Chan(6).SpikeTimes=h5read('experiment1.kwx','/channel_groups/5/time_samples');
-Chan(5).Waveforms=h5read('experiment1.kwx','/channel_groups/4/waveforms_filtered');
-% figure; plot(Chan(5).SpikeTimes);
-
 %KWD contains the continuous data for a given processor in the /recordings/#/data dataset, where # is the recording number, starting at 0
+RawInfo=h5info('experiment1_100.raw.kwd','/recordings/0/data');
+RecDur=RawInfo.Dataspace.Size;
 
+%Keep only channels with > 1Hz firing rate
+GoodChans=cell(size(ChanInfo.Groups.Groups,1),1);
+for chan=1:size(ChanInfo.Groups.Groups,1)
+    if ChanInfo.Groups.Groups(chan).Datasets(2).Dataspace.Size/(RecDur(2)/SamplingRate)>1
+        GoodChans(chan)=regexp(ChanInfo.Groups.Groups(chan).Name,'\d+$','match');
+    end
+end
+
+% get data from all channels with appropriate units
+KeepChans=find(~cellfun('isempty',GoodChans));
+ChanData=struct('Units',[],'SpikeTimes',[],'Waveforms',[]);
+if ~isempty(KeepChans)
+    figure;
+    MinMax=[0 0];
+    for chan=1:length(KeepChans)
+        ChanNum=str2double(GoodChans{KeepChans(chan)});
+        ChanData(ChanNum+1).Units=h5read('experiment1.kwx',['/channel_groups/' GoodChans{KeepChans(chan)} '/recordings']);
+        try
+            ChanData(ChanNum+1).SpikeTimes=h5read('experiment1.kwx',['/channel_groups/' GoodChans{KeepChans(chan)} '/time_samples']);
+            ChanData(ChanNum+1).Waveforms=h5read('experiment1.kwx',['/channel_groups/' GoodChans{KeepChans(chan)} '/waveforms_filtered']);
+        catch
+            ChanData(ChanNum+1).SpikeTimes=[];
+            ChanData(ChanNum+1).Waveforms=[];
+        end
+        % plot waveform
+        subplot(ceil(sqrt(length(KeepChans))),ceil(length(KeepChans)/ceil(sqrt(length(KeepChans)))),ChanNum+1)
+        plot(sum(ChanData(ChanNum+1).Waveforms,3));
+        %assuming 48 samples here
+        set(gca,'XTick',0:16:48);
+        set(gca,'XTickLabel',round(-(1/SamplingRate)*16*10000)/10:0.5:round((1/SamplingRate)*32*10000)/10);
+        axis(gca,'tight'); box off;
+        set(gca,'Color','white','TickDir','out');
+        title(['Chan ' num2str(ChanNum+1)]);
+        
+        MinMax(1)=min(MinMax(1), min(get(gca,'ylim')));
+        MinMax(2)=max(MinMax(2), max(get(gca,'ylim')));
+    end
+    for chan=1:length(KeepChans)
+        subplot(ceil(sqrt(length(KeepChans))),ceil(length(KeepChans)/ceil(sqrt(length(KeepChans)))),chan)
+        set(gca,'ylim',MinMax)
+    end
+end
+
+%% let user select Channels to plot
+% ....
 
 %% get Trial structure
 % h5disp('experiment1.kwik','/event_types/TTL')
@@ -63,18 +105,18 @@ Trials.end=TTL_times(find([TTL_seq<=610;false])+2);
 Trials.interval=TTL_times(find([TTL_seq<=610;false])+3)-TTL_times(find([TTL_seq<=610;false])+2);
 
 %% gather data
-Spkt=Chan(5).SpikeTimes;
+Spkt=ChanData(5).SpikeTimes;
 Rasters{1}=zeros(size(Trials.start,1),2000); %begining of trial
 Rasters{2}=zeros(size(Trials.end,1),2000); %end of trial
 for trialnb=1:size(Trials.start,1)
-%begining of trial
+%Collect spikes from 1st epoch (begining of trial)
 RastSWin=Trials.start(trialnb)-uint64(SamplingRate); % 1 sec before
 RastEWin=Trials.start(trialnb)+uint64(SamplingRate); % 1 sec afer
 SpikeTimes=round((Spkt(Spkt>RastSWin & Spkt<RastEWin)-RastSWin)/uint64(SamplingRate/1000));
 SpikeTimes(SpikeTimes==0)=1; %no 0 indices
 SpikeTimes=unique(SpikeTimes);
 Rasters{1}(trialnb,SpikeTimes)=1;
-%end of trial
+%Collect spikes from 2nd epoch (end of trial)
 RastSWin=Trials.end(trialnb)-uint64(SamplingRate); % 1 sec before
 RastEWin=Trials.end(trialnb)+uint64(SamplingRate); % 1 sec afer
 SpikeTimes=round((Spkt(Spkt>RastSWin & Spkt<RastEWin)-RastSWin)/uint64(SamplingRate/1000));
@@ -104,7 +146,7 @@ patch([1:length(sdf{2}),fliplr(1:length(sdf{2}))],[sdf{2}-rastsem{2},fliplr(sdf{
 plot(sdf{1},'Color',cmap(1,:),'LineWidth',1.8);
 plot(sdf{2},'Color',cmap(22,:),'LineWidth',1.8);
 
-set(gca,'XTick',[0:100:(stop-start-6*conv_sigma)]);
+set(gca,'XTick',0:100:(stop-start-6*conv_sigma));
 set(gca,'XTickLabel',-(alignmtt-(start+3*conv_sigma)):100:stop-(alignmtt+3*conv_sigma));
 axis(gca,'tight'); box off;
 set(gca,'Color','white','TickDir','out','FontName','Cambria','FontSize',10);

@@ -1,13 +1,13 @@
-%% Process and display data from Open-Ephys recordings  
+%% Process and display data from Open-Ephys recordings
 
 %% Get file path
 % e.g., C:\Data\OpenEphys\PrV25_12_train2_2015-09-10_20-26-30
-dname = uigetdir('C:\Data\OpenEphys\','Open Ephys Reordings');    
+dname = uigetdir('C:\Data\OpenEphys\','Open Ephys Reordings');
 cd(dname);
 
 %% Get Spike data
 %O_E binary format - see also 'load_open_ephys_data.m'
-% fid = fopen('102_CH1.continuous'); 
+% fid = fopen('102_CH1.continuous');
 % fid = fopen('all_channels.events');
 % hdr = fread(fid, 1024, 'char*1');
 % timestamp = fread(fid, 1, 'int64',0,'l');
@@ -42,7 +42,7 @@ end
 KeepChans=find(~cellfun('isempty',GoodChans));
 ChanData=struct('Units',[],'SpikeTimes',[],'Waveforms',[]);
 if ~isempty(KeepChans)
-    figure;
+    figure('Position',[35 122 884 845]);
     MinMax=[0 0];
     for chan=1:length(KeepChans)
         ChanNum=str2double(GoodChans{KeepChans(chan)});
@@ -73,8 +73,9 @@ if ~isempty(KeepChans)
     end
 end
 
-%% let user select Channels to plot
-% ....
+%% let user select Channels to plot?
+% default: all
+KeepChans=1:size(ChanData,2);
 
 %% get Trial structure
 % h5disp('experiment1.kwik','/event_types/TTL')
@@ -83,13 +84,13 @@ end
 TTL_ID = h5read('experiment1.kwik','/event_types/TTL/events/user_data/eventID');
 TTL_times = h5read('experiment1.kwik','/event_types/TTL/events/time_samples');
 % keep absolute time of TTL onset
-TTL_times=TTL_times(diff([0;TTL_ID])>0); 
+TTL_times=TTL_times(diff([0;TTL_ID])>0);
 % TTL sequence
-TTL_seq=diff(TTL_times); 
-%we send 10ms TTLs, with 10ms interval. Two pulses for begining of trial 
-%(e.g.,head through front panel). With sampling rate of 30kHz, that 
+TTL_seq=diff(TTL_times);
+%we send 10ms TTLs, with 10ms interval. Two pulses for begining of trial
+%(e.g.,head through front panel). With sampling rate of 30kHz, that
 % interval should be 601 samples (20ms*30+1). Or 602 accounting for jitter.
-% TTL_seq should thus read as: 
+% TTL_seq should thus read as:
 %   601
 %   end of trial time
 %   inter-trial interval
@@ -99,42 +100,83 @@ end
 if TTL_seq(end)<=610 %unfinished last trial
     TTL_seq(end)=999;
 end
-    
+
 Trials.start=TTL_times([TTL_seq<=610;false]);%Trials.start=Trials.start./uint64(SamplingRate/1000)
 Trials.end=TTL_times(find([TTL_seq<=610;false])+2);
 Trials.interval=TTL_times(find([TTL_seq<=610;false])+3)-TTL_times(find([TTL_seq<=610;false])+2);
 
-%% gather data
-Spkt=ChanData(5).SpikeTimes;
-Rasters{1}=zeros(size(Trials.start,1),2000); %begining of trial
-Rasters{2}=zeros(size(Trials.end,1),2000); %end of trial
-for trialnb=1:size(Trials.start,1)
-%Collect spikes from 1st epoch (begining of trial)
-RastSWin=Trials.start(trialnb)-uint64(SamplingRate); % 1 sec before
-RastEWin=Trials.start(trialnb)+uint64(SamplingRate); % 1 sec afer
-SpikeTimes=round((Spkt(Spkt>RastSWin & Spkt<RastEWin)-RastSWin)/uint64(SamplingRate/1000));
-SpikeTimes(SpikeTimes==0)=1; %no 0 indices
-SpikeTimes=unique(SpikeTimes);
-Rasters{1}(trialnb,SpikeTimes)=1;
-%Collect spikes from 2nd epoch (end of trial)
-RastSWin=Trials.end(trialnb)-uint64(SamplingRate); % 1 sec before
-RastEWin=Trials.end(trialnb)+uint64(SamplingRate); % 1 sec afer
-SpikeTimes=round((Spkt(Spkt>RastSWin & Spkt<RastEWin)-RastSWin)/uint64(SamplingRate/1000));
-SpikeTimes(SpikeTimes==0)=1; %no 0 indices
-SpikeTimes=unique(SpikeTimes);
-Rasters{2}(trialnb,SpikeTimes)=1;
+%% gather data from selected channels
+Rasters.channels=cell(length(KeepChans),2);
+Rasters.epochnames={'BeginTrial','EndTrial'};
+for chan=1:length(KeepChans)
+    [Rasters.channels{chan,1},Rasters.channels{chan,2}]=deal(zeros(size(Trials.start,1),2000));
+    Spkt=ChanData(KeepChans(chan)).SpikeTimes;
+    for trialnb=1:size(Trials.start,1)
+        %Collect spikes from 1st epoch (begining of trial)
+        RastSWin=Trials.start(trialnb)-uint64(SamplingRate); % 1 sec before
+        RastEWin=Trials.start(trialnb)+uint64(SamplingRate); % 1 sec afer
+        SpikeTimes=round((Spkt(Spkt>RastSWin & Spkt<RastEWin)-RastSWin)/uint64(SamplingRate/1000));
+        SpikeTimes(SpikeTimes==0)=1; %no 0 indices
+        SpikeTimes=unique(SpikeTimes);
+        Rasters.channels{chan,1}(trialnb,SpikeTimes)=1;
+        %Collect spikes from 2nd epoch (end of trial)
+        RastSWin=Trials.end(trialnb)-uint64(SamplingRate); % 1 sec before
+        RastEWin=Trials.end(trialnb)+uint64(SamplingRate); % 1 sec afer
+        SpikeTimes=round((Spkt(Spkt>RastSWin & Spkt<RastEWin)-RastSWin)/uint64(SamplingRate/1000));
+        SpikeTimes(SpikeTimes==0)=1; %no 0 indices
+        SpikeTimes=unique(SpikeTimes);
+        Rasters.channels{chan,2}(trialnb,SpikeTimes)=1;
+    end
 end
+%% plot raster showing all channels
+figure('Position',[1050 120 750 790]);
 
-%% plot raster
+MeanChan=cellfun(@(x) conv_raster(x),Rasters.channels(:,1),'UniformOutput',false);
+MeanChan=cell2mat(MeanChan);
+subplot(1,2,1)
+imagesc(zscore(MeanChan,[],2)); %
+% imagesc(MeanChan);
+xlabel('Time');
+ylabel('Channel','FontWeight','bold','FontSize',12);
+% draw alignment bar
+currylim=get(gca,'YLim');
+currxlim=get(gca,'XLim');midl=round(currxlim(2)/2);
+set(gca,'XTick',[midl-500 midl midl+500]);
+set(gca,'XTickLabel',[-500 0 500]);
+patch([repmat(midl-3,1,2) repmat(midl+3,1,2)], ...
+    [[0 currylim(2)] fliplr([0 currylim(2)])], ...
+    [0 0 0 0],[0.8 0 0],'EdgeColor','none','FaceAlpha',0.8);
+title('Neural response, begining of trial');
+hcb = colorbar('southoutside');
+hcb.Label.String = 'z-scored firing rate';
+
+MeanChan=cellfun(@(x) conv_raster(x),Rasters.channels(:,2),'UniformOutput',false);
+MeanChan=cell2mat(MeanChan);
+subplot(1,2,2)
+imagesc(zscore(MeanChan,[],2));
+% imagesc(MeanChan);
+xlabel('Time');
+ylabel('Channel','FontWeight','bold','FontSize',12);
+% draw alignment bar
+currylim=get(gca,'YLim');
+currxlim=get(gca,'XLim');midl=round(currxlim(2)/2);
+set(gca,'XTick',[midl-500 midl midl+500]);
+set(gca,'XTickLabel',[-500 0 500]);
+patch([repmat(midl-3,1,2) repmat(midl+3,1,2)], ...
+    [[0 currylim(2)] fliplr([0 currylim(2)])], ...
+    [0 0 0 0],[0.8 0 0],'EdgeColor','none','FaceAlpha',0.8);
+title('Neural response, end of trial');
+hcb = colorbar('southoutside');
+hcb.Label.String = 'z-scored firing rate';
 
 %% plot sdf
+BestChan=find(mean(MeanChan,2)==max(mean(MeanChan,2)));
 start=1;
-stop=size(Rasters{1},2);
-conv_sigma=20;
+stop=size(Rasters.channels{BestChan,1},2);
 alignmtt=1000;
-[sdf{1}, ~, rastsem{1}]=conv_raster(Rasters{1},conv_sigma,start,stop);
-[sdf{2}, ~, rastsem{2}]=conv_raster(Rasters{2},conv_sigma,start,stop);
-figure;
+[sdf{1}, ~, rastsem{1}]=conv_raster(Rasters.channels{BestChan,1},conv_sigma,start,stop);
+[sdf{2}, ~, rastsem{2}]=conv_raster(Rasters.channels{BestChan,2},conv_sigma,start,stop);
+figure('Position',[1469 542 417 417]);
 colormap default;
 cmap = colormap(gcf);
 hold on;
@@ -146,12 +188,12 @@ patch([1:length(sdf{2}),fliplr(1:length(sdf{2}))],[sdf{2}-rastsem{2},fliplr(sdf{
 plot(sdf{1},'Color',cmap(1,:),'LineWidth',1.8);
 plot(sdf{2},'Color',cmap(22,:),'LineWidth',1.8);
 
-set(gca,'XTick',0:100:(stop-start-6*conv_sigma));
-set(gca,'XTickLabel',-(alignmtt-(start+3*conv_sigma)):100:stop-(alignmtt+3*conv_sigma));
+set(gca,'XTick',200-(start+3*conv_sigma):200:(stop-start-6*conv_sigma));
+set(gca,'XTickLabel',-(alignmtt-200):200:stop-(alignmtt+200));
 axis(gca,'tight'); box off;
 set(gca,'Color','white','TickDir','out','FontName','Cambria','FontSize',10);
-hxlabel=xlabel(gca,'Time (ms)','FontName','Cambria','FontSize',10);
-hylabel=ylabel(gca,'Firing rate (spikes/s)','FontName','Cambria','FontSize',10);
+hxlabel=xlabel(gca,'Time (ms)','FontName','Cambria','FontSize',12);
+hylabel=ylabel(gca,'Firing rate (spikes/s)','FontName','Cambria','FontSize',12);
 
 % draw alignment bar
 currylim=get(gca,'YLim');
@@ -161,3 +203,5 @@ patch([repmat((alignmtt-(start+3*conv_sigma))-2,1,2) repmat((alignmtt-(start+3*c
 
 %legend
 legend('Front panel exploration','Reward port');
+legend('boxoff')
+text(200,currylim(2)-20,['Channel ' num2str(BestChan)],'FontName','Cambria');

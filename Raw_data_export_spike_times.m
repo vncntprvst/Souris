@@ -1,7 +1,7 @@
 %% Convert and export data to "raw" format
 
 extra=0;
-filterOption='nopp'; % nopp norm difffilt lowpass 'movav' 'multifilt';
+filterOption='CAR'; % nopp norm difffilt lowpass 'movav' 'multifilt';
 
 %get most recently changed data folder
 dataDir='C:\Data\';
@@ -99,7 +99,7 @@ elseif strfind(fname,'.ns')
     disp(['took ' num2str(toc) ' seconds to load data']);
 end
 
-%% amplitude-dependant bandpass
+%% Pre-processing options
 if strcmp(filterOption,'lowpass')
     %% butterworth low-pass
     tic
@@ -112,7 +112,7 @@ if strcmp(filterOption,'lowpass')
 elseif strcmp(filterOption,'highpass')
     %% butterworth high-pass
     tic
-    [b,a] = butter(3,300/(rec.samplingRate/2)/2,'high');
+    [b,a] = butter(3,500/(rec.samplingRate/2),'high');
     % delay = round(max(grpdelay(b,a)));
     for chNm=1:size(data,1)
         data(chNm,:)= filter(b,a,single(data(chNm,:)));
@@ -130,6 +130,55 @@ elseif strcmp(filterOption,'movav')
         movAverage = [movAverage(meanDelay+1:end) movAverageTail(avOver+2:end)] ;
         data(chNm,:)=data(chNm,:)-int16(movAverage);
     end
+elseif  strcmp(filterOption,'CAR')
+    %% common average referencing
+    
+    % butterworth band-pass
+    [b,a] = butter(3,[500 6000]/(rec.samplingRate/2),'bandpass');
+    for chNm=1:size(data,1)
+        data(chNm,:)= filter(b,a,single(data(chNm,:)));
+    end
+    % select channels to use for CAR
+    figure('position',[727,81,1160,899]);
+    subplot(1,2,1);  hold on;
+    for ChN=1:size(data,1)
+        plot(data(ChN,round(size(data,2)/2)-rec.samplingRate:...
+            round(size(data,2)/2)+rec.samplingRate)+(max(max(data))*(ChN-1)));
+    end
+    set(gca,'xtick',linspace(0,rec.samplingRate*2,4),...
+        'xticklabel',linspace(round((round(size(data,2)/2)-rec.samplingRate)/rec.samplingRate),...
+        round((round(size(data,2)/2)+rec.samplingRate)/rec.samplingRate),4),'TickDir','out');
+    set(gca,'ytick',linspace(0,double(max(max(data))*(ChN-1)),16),'yticklabel',...
+        {'Chan 1','Chan 2','Chan 3','Chan 4','Chan 5','Chan 6','Chan 7','Chan 8',...
+        'Chan 9','Chan 10','Chan 11','Chan 12','Chan 13','Chan 14','Chan 15','Chan 16'})
+    %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
+    axis('tight');box off;
+    xlabel('Time - 2 sec mid-recording')
+    ylabel('Bandpassed 500 - 6kHz raw signal')
+    set(gca,'Color','white','FontSize',14,'FontName','calibri');
+    
+    str= num2str(linspace(1,size(data,1),size(data,1))');
+    ChRef= listdlg('PromptString',...
+        'select channels to use for CAR to plot:','ListString',str);
+    data=(data-repmat(median(data(ChRef,:),1),[size(data,1),1]));%./mad(faa,1);
+    subplot(1,2,2);  hold on;
+    for ChN=1:size(data,1)
+        plot(data(ChN,round(size(data,2)/2)-rec.samplingRate:...
+            round(size(data,2)/2)+rec.samplingRate)+(max(max(data))*(ChN-1)));
+    end
+    set(gca,'xtick',linspace(0,rec.samplingRate*2,4),...
+        'xticklabel',linspace(round((round(size(data,2)/2)-rec.samplingRate)/rec.samplingRate),...
+        round((round(size(data,2)/2)+rec.samplingRate)/rec.samplingRate),4),'TickDir','out');
+    set(gca,'ytick',linspace(0,double(max(max(data))*(ChN-1)),16),'yticklabel',...
+        {'Chan 1','Chan 2','Chan 3','Chan 4','Chan 5','Chan 6','Chan 7','Chan 8',...
+        'Chan 9','Chan 10','Chan 11','Chan 12','Chan 13','Chan 14','Chan 15','Chan 16'})
+    %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
+    axis('tight');box off;
+    xlabel('Time - 2 sec mid-recording')
+    ylabel('Bandpassed 500 - 6kHz raw signal, CAR')
+    title('Common average referencing')
+    set(gca,'Color','white','FontSize',14,'FontName','calibri');
+    
 elseif  strcmp(filterOption,'norm')
     %% normalization following Pouzat's method
 % data is high-passed filtered with a cutoff frequency between 200 and 500 Hz
@@ -139,8 +188,8 @@ elseif  strcmp(filterOption,'norm')
     tic
     
     % for LY 
-    data=[foo{:}];
-    data=data([1,3,5,7,11,13,15,17],:); % 9 and 10 were floating, and channels were duplicated
+%     data=[foo{:}];
+%     data=data([1,3,5,7,11,13,15,17],:); % 9 and 10 were floating, and channels were duplicated
     % butterworth high-pass
     [b,a] = butter(3,500/(rec.samplingRate/2),'high');
     % delay = round(max(grpdelay(b,a)));
@@ -293,7 +342,8 @@ elseif  strcmp(filterOption,'difffilt')
         %                     round(coordPutSpikes(spknm))+spkArea)]=deal(true);
         %             end
         %             toc
-        %         end     
+        %         end
+        
     end
     disp(['difffilt done in ' num2str(toc) 'seconds']);
 elseif strcmp(filterOption,'multifilt')
@@ -369,22 +419,42 @@ if ~isa(data,'int16')
 end
 
 % plots
-% figure; hold on;
-% spacing=max(max(abs(data(:,1:60*rec.samplingRate))));
-% for chnum=1:rec.numRecChan
-%     plot(data(chnum,2*(60*rec.samplingRate):2*(60*rec.samplingRate)+(10*rec.samplingRate))+spacing*chnum);
-% end
-% formatdata=reshape(data',[size(data,1)*size(data,2) 1]);
-%test on truncated data
-% cd('C:\Data\fake_data');
-% trFormatdata=data(:,1:chanInfo.Groups.Groups(1).Datasets(2).Dataspace.Size);
-% expname='Trunc16ch';
-% fileID = fopen([expname '.dat'],'w');
-% fwrite(fileID,trFormatdata,'int16');
+figure; hold on;
+plot(data(11,:));
+% plot(data(11,:)+1500);
+% thd10=rms((data(10,:)));
+thd11=rms((data(11,:)));
+plot(-5*thd11*ones(1,size(data,2)));
+plot(-20*thd11*ones(1,size(data,2)));
+
+% plot(1500-4*thd11*ones(1,size(data,2)));
+
+%% get spike times
+Spikes.nativeData=diff(data(11,:)<-5*thd11 & data(11,:)>-20*thd11)==1;
+plot(Spikes.nativeData*500);
+Spikes.channel=11;
+Spikes.samplingRate=rec.samplingRate;
+
+%% downsample to 1 millisecond bins
+spikeTimeIdx=zeros(1,size(Spikes.nativeData,2));
+spikeTimeIdx(Spikes.nativeData)=1;
+spikeTimes=find(Spikes.nativeData);
+binSize=1;
+numBin=ceil(size(spikeTimeIdx,2)/(Spikes.samplingRate/1000)/binSize);
+% binspikeTime = histogram(double(spikeTimes), numBin); %plots directly histogram
+[Spikes.downSampled,Spikes.binEdges] = histcounts(double(spikeTimes), numBin);
+Spikes.downSampled(Spikes.downSampled>1)=1;
+% figure;
+% bar(Spikes.binEdges(1:end-1)+round(mean(diff(Spikes.binEdges))/2),Spikes.downSampled,'hist');
+
 
 %% Export
 cd('C:\Data\export');
-uname=getenv('username');
+if strfind(expname{end}(2:regexp(expname{end}(2:end),'\_\d\d\d\d\_')),'LY')
+    uname='Leeyup';
+else
+    uname=getenv('username');
+end
 if regexp(expname{end}(2:end),'\_\d\d\d\d\_') %Open Ephys date format
     dateStart=regexp(expname{end}(2:end),'\_\d\d\d\d\_');
 elseif regexp(expname{end}(2:end),'^\d\d\d\d')
@@ -396,10 +466,18 @@ else
 end
 if ~isfield(rec,'date')
     dateItems=regexp(expname{end}(2+dateStart:end),'\d+','match');
-    rec.date=[dateItems{1:3} '_' dateItems{4:6}];
+    try
+        rec.date=[dateItems{1:3} '_' dateItems{4:6}];
+    catch
+        rec.date=[dateItems{1} '_' dateItems{2:end}];
+    end
 else
     dateItems=regexp(rec.date,'\d+','match');
-    rec.date=[dateItems{1:3} '_' dateItems{4:6}];
+    try
+        rec.date=[dateItems{1:3} '_' dateItems{4:6}];
+    catch
+        rec.date=[dateItems{1} '_' dateItems{2:end}];
+    end
 end
 
 rec.sys=expname{end-1}(2:end);
@@ -412,13 +490,16 @@ switch rec.sys
         rec.sys='Rock';
 end
 
-expname=[expname{end}(2:dateStart) '_' rec.date '_' rec.sys uname(1) filterOption];
-tic;
-fileID = fopen([expname '.dat'],'w');
-fwrite(fileID,data,'int16');
-% fprintf(fileID,'%d\n',formatdata);
-fclose(fileID);
-disp(['took ' num2str(toc) ' seconds to export data']);
+expname=[expname{end}(2:end) '_' rec.sys '_' filterOption '_Spikes_Ch' num2str(Spikes.channel)];
+% expname=[expname{end}(2:dateStart)  '_Spikes_Ch' num2str(Spikes.channel)];
+% tic;
+save(expname,'Spikes');
+
+% fileID = fopen([expname '.dat'],'w');
+% fwrite(fileID,Spikes,'int16');
+% % fprintf(fileID,'%d\n',formatdata);
+% fclose(fileID);
+% disp(['took ' num2str(toc) ' seconds to export data']);
 
 %% Create fake 32 ch. data
 % convertdata=int16(data);
@@ -561,3 +642,5 @@ if extra
     % filtData = filter(df,[chan5sample; zeros(delay,1)]); % Append D zeros to the input data
     % filtData = filtData(delay+1:end);                  % Shift data to compensate for delay
 end
+
+clearvars

@@ -177,8 +177,7 @@ elseif  strcmp(filterOption,'CAR')
     xlabel('Time - 2 sec mid-recording')
     ylabel('Bandpassed 500 - 6kHz raw signal, CAR')
     title('Common average referencing')
-    set(gca,'Color','white','FontSize',14,'FontName','calibri');
-    
+    set(gca,'Color','white','FontSize',14,'FontName','calibri');    
 elseif  strcmp(filterOption,'norm')
     %% normalization following Pouzat's method
 % data is high-passed filtered with a cutoff frequency between 200 and 500 Hz
@@ -418,35 +417,43 @@ if ~isa(data,'int16')
     data=int16(data);
 end
 
-% plots
-figure; hold on;
-plot(data(11,:));
-% plot(data(11,:)+1500);
-% thd10=rms((data(10,:)));
-thd11=rms((data(11,:)));
-plot(-5*thd11*ones(1,size(data,2)));
-plot(-20*thd11*ones(1,size(data,2)));
-
-% plot(1500-4*thd11*ones(1,size(data,2)));
-
-%% get spike times
-Spikes.nativeData=diff(data(11,:)<-5*thd11 & data(11,:)>-20*thd11)==1;
-plot(Spikes.nativeData*500);
-Spikes.channel=11;
 Spikes.samplingRate=rec.samplingRate;
 
+%% Channels to export
+ChExport= listdlg('PromptString',...
+        'select channels to export:','ListString',str);
+for ChExN=1:size(ChExport,2)
+Spikes.channel(ChExN)=ChExport(ChExN);
+thld=rms((data(Spikes.channel(ChExN),:)));
+
+% plots
+% figure; hold on;
+% plot(data(Spikes.channel,:));
+% % plot(data(Spikes.channel,:)+1500);
+% % thd10=rms((data(10,:)));
+% plot(-5*thd*ones(1,size(data,2)));
+% plot(-20*thd*ones(1,size(data,2)));
+% plot(1500-4*thd*ones(1,size(data,2)));
+
+%% get spike times
+Spikes.nativeData{ChExN}=diff(data(Spikes.channel(ChExN),:)<-5*thld & data(Spikes.channel(ChExN),:)>-20*thld)==1;
+% plot(Spikes.nativeData*500);
+
 %% downsample to 1 millisecond bins
-spikeTimeIdx=zeros(1,size(Spikes.nativeData,2));
-spikeTimeIdx(Spikes.nativeData)=1;
-spikeTimes=find(Spikes.nativeData);
+Spikes.samplingRate(2)=1000;
+spikeTimeIdx=zeros(1,size(Spikes.nativeData{ChExN},2));
+spikeTimeIdx(Spikes.nativeData{ChExN})=1;
+spikeTimes=find(Spikes.nativeData{ChExN});
 binSize=1;
 numBin=ceil(size(spikeTimeIdx,2)/(Spikes.samplingRate/1000)/binSize);
 % binspikeTime = histogram(double(spikeTimes), numBin); %plots directly histogram
-[Spikes.downSampled,Spikes.binEdges] = histcounts(double(spikeTimes), numBin);
-Spikes.downSampled(Spikes.downSampled>1)=1;
+[Spikes.downSampled{ChExN},Spikes.binEdges{ChExN}] = histcounts(double(spikeTimes), numBin);
+Spikes.downSampled{ChExN}(Spikes.downSampled{ChExN}>1)=1;
+
 % figure;
 % bar(Spikes.binEdges(1:end-1)+round(mean(diff(Spikes.binEdges))/2),Spikes.downSampled,'hist');
 
+end
 
 %% Export
 cd('C:\Data\export');
@@ -490,16 +497,16 @@ switch rec.sys
         rec.sys='Rock';
 end
 
-expname=[expname{end}(2:end) '_' rec.sys '_' filterOption '_Spikes_Ch' num2str(Spikes.channel)];
+expname=[expname{end}(2:end) '_' rec.sys '_' filterOption];
 % expname=[expname{end}(2:dateStart)  '_Spikes_Ch' num2str(Spikes.channel)];
-% tic;
+tic;
 save(expname,'Spikes');
 
 % fileID = fopen([expname '.dat'],'w');
 % fwrite(fileID,Spikes,'int16');
 % % fprintf(fileID,'%d\n',formatdata);
 % fclose(fileID);
-% disp(['took ' num2str(toc) ' seconds to export data']);
+disp(['took ' num2str(toc) ' seconds to export data']);
 
 %% Create fake 32 ch. data
 % convertdata=int16(data);
@@ -643,4 +650,5 @@ if extra
     % filtData = filtData(delay+1:end);                  % Shift data to compensate for delay
 end
 
+close all
 clearvars

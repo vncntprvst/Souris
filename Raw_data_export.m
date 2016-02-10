@@ -1,7 +1,7 @@
 %% Convert and export data to "raw" format
 
 extra=0;
-filterOption='nopp'; % nopp norm difffilt lowpass 'movav' 'multifilt';
+filterOption='nopp'; % CAR nopp norm difffilt lowpass 'movav' 'multifilt';
 
 %get most recently changed data folder
 dataDir='C:\Data\';
@@ -12,6 +12,8 @@ recentDataFolder=[dataDir dataDirListing(fDateIdx(1)).name '\'];
 dataDirListing=dir(recentDataFolder);
 [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
 recentDataFolder=[recentDataFolder dataDirListing(fDateIdx(1)).name '\'];
+% declarations
+axis_name= @(x) sprintf('Chan %.0f',x);
 
 %% Get file path
 [fname,dname] = uigetfile({'*.continuous;*.kwik;*.kwd;*.kwx;*.nex;*.ns*','All Data Formats';...
@@ -84,7 +86,7 @@ elseif strfind(fname,'nex')
         richData=readNexFile(dirlisting{rawfiles(fnum)});
         data(fnum,:)=(richData.contvars{1, 1}.data)';
     end
-elseif strfind(fname,'.ns')  
+elseif strfind(fname,'.ns')
     %% Blackrock raw data
     tic;
     data = openNSxNew(fname);
@@ -99,7 +101,10 @@ elseif strfind(fname,'.ns')
     disp(['took ' num2str(toc) ' seconds to load data']);
 end
 
-%% amplitude-dependant bandpass
+% channel string
+chStr= num2str(linspace(1,size(data,1),size(data,1))');
+
+%% Pre-processing options
 if strcmp(filterOption,'lowpass')
     %% butterworth low-pass
     tic
@@ -130,15 +135,59 @@ elseif strcmp(filterOption,'movav')
         movAverage = [movAverage(meanDelay+1:end) movAverageTail(avOver+2:end)] ;
         data(chNm,:)=data(chNm,:)-int16(movAverage);
     end
+elseif  strcmp(filterOption,'CAR')
+    %% common average referencing   
+    % butterworth band-pass
+    [b,a] = butter(3,[500 6000]/(rec.samplingRate/2),'bandpass');
+    for chNm=1:size(data,1)
+        data(chNm,:)= filter(b,a,single(data(chNm,:)));
+    end
+    % select channels to use for CAR
+    dataOneSecSample=data(:,round(size(data,2)/2)-rec.samplingRate:round(size(data,2)/2)+rec.samplingRate);
+    figure('position',[727,81,1160,899]);
+    subplot(1,2,1);  hold on;
+    for ChN=1:size(data,1)  
+        plot(double(dataOneSecSample(ChN,:))+(max(mean(dataOneSecSample))*(ChN-1)));
+    end
+    set(gca,'xtick',linspace(0,rec.samplingRate*2,4),...
+        'xticklabel',linspace(round((round(size(data,2)/2)-rec.samplingRate)/rec.samplingRate),...
+        round((round(size(data,2)/2)+rec.samplingRate)/rec.samplingRate),4),'TickDir','out');
+    set(gca,'ytick',linspace(0,double(max(mean(dataOneSecSample))*(ChN-1)),size(data,1)),'yticklabel',...
+        cellfun(axis_name, num2cell(1:size(data,1)), 'UniformOutput', false))
+    %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
+    axis('tight');box off;
+    xlabel('Time - 2 sec mid-recording')
+    ylabel('Bandpassed 500 - 6kHz raw signal')
+    set(gca,'Color','white','FontSize',14,'FontName','calibri');
+    
+    ChRef= listdlg('PromptString',...
+        'select channels to use for CAR to plot:','ListString',chStr);
+    data=(data-repmat(median(data(ChRef,:),1),[size(data,1),1]));%./mad(faa,1);
+    dataOneSecSample=data(:,round(size(data,2)/2)-rec.samplingRate:round(size(data,2)/2)+rec.samplingRate);
+    subplot(1,2,2);  hold on;
+    for ChN=1:size(data,1)  
+        plot(double(dataOneSecSample(ChN,:))+(max(mean(dataOneSecSample))*(ChN-1)));
+    end
+    set(gca,'xtick',linspace(0,rec.samplingRate*2,4),...
+        'xticklabel',linspace(round((round(size(data,2)/2)-rec.samplingRate)/rec.samplingRate),...
+        round((round(size(data,2)/2)+rec.samplingRate)/rec.samplingRate),4),'TickDir','out');
+    set(gca,'ytick',linspace(0,double(max(mean(dataOneSecSample))*(ChN-1)),size(data,1)),'yticklabel',...
+        cellfun(axis_name, num2cell(1:size(data,1)), 'UniformOutput', false))
+    %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
+    axis('tight');box off;
+    xlabel('Time - 2 sec mid-recording')
+    ylabel('Bandpassed 500 - 6kHz raw signal, CAR')
+    title('Common average referencing')
+    set(gca,'Color','white','FontSize',14,'FontName','calibri');
 elseif  strcmp(filterOption,'norm')
     %% normalization following Pouzat's method
-% data is high-passed filtered with a cutoff frequency between 200 and 500 Hz
-% each channel is then median subtracted and divided by its median absolute deviation (MAD).
-% The MAD provides a robust estimate of the standard deviation of the recording noise. After this
-% normalisation, detection thresholds are comparable on the different electrode.
+    % data is high-passed filtered with a cutoff frequency between 200 and 500 Hz
+    % each channel is then median subtracted and divided by its median absolute deviation (MAD).
+    % The MAD provides a robust estimate of the standard deviation of the recording noise. After this
+    % normalisation, detection thresholds are comparable on the different electrode.
     tic
     
-    % for LY 
+    % for LY
     data=[foo{:}];
     data=data([1,3,5,7,11,13,15,17],:); % 9 and 10 were floating, and channels were duplicated
     % butterworth high-pass
@@ -148,11 +197,11 @@ elseif  strcmp(filterOption,'norm')
         data(chNm,:)= filter(b,a,single(data(chNm,:)));
     end
     data=(data-repmat(median(data,1),[size(data,1),1]));%./mad(faa,1);
-
+    
     timewindow=1800000;
     figure; hold on
     for chNm=1:size(data,1)
-%         subplot(8,1,chNm)
+        %         subplot(8,1,chNm)
         plot(data(chNm,timewindow:2*timewindow)+(max(max(data)/4)*(chNm-1)))
     end
     
@@ -164,19 +213,19 @@ elseif  strcmp(filterOption,'norm')
     xlabel('Time (s.)')
     ylabel('Norm. Firing rate')
     set(gca,'Color','white','FontSize',18,'FontName','calibri');
-
-
-%     faa=data(:,1:30000);
-%     % median substraction and MAD division
-%     faa=(double(faa)-repmat(median(double(faa),1),[size(double(faa),1),1]));%./mad(faa,1);
-%     daat===(double(faa)-repmat(median(double(faa),1),[size(double(faa),1),1]));%./mad(faa,1);
-
+    
+    
+    %     faa=data(:,1:30000);
+    %     % median substraction and MAD division
+    %     faa=(double(faa)-repmat(median(double(faa),1),[size(double(faa),1),1]));%./mad(faa,1);
+    %     daat===(double(faa)-repmat(median(double(faa),1),[size(double(faa),1),1]));%./mad(faa,1);
+    
     % for further spike detection
     % detect valleys
-%     filtFaa=smooth(double(faa));
-%     filtFaa=filtFaa-median(filtFaa);
-%     filtFaa=filtFaa./mad(filtFaa,1);
-%     filtFaa(filtFaa>-3)=0;
+    %     filtFaa=smooth(double(faa));
+    %     filtFaa=filtFaa-median(filtFaa);
+    %     filtFaa=filtFaa./mad(filtFaa,1);
+    %     filtFaa(filtFaa>-3)=0;
     
     disp(['normalization done in ' num2str(toc) 'seconds']);
 elseif  strcmp(filterOption,'difffilt')
@@ -293,7 +342,7 @@ elseif  strcmp(filterOption,'difffilt')
         %                     round(coordPutSpikes(spknm))+spkArea)]=deal(true);
         %             end
         %             toc
-        %         end     
+        %         end
     end
     disp(['difffilt done in ' num2str(toc) 'seconds']);
 elseif strcmp(filterOption,'multifilt')
@@ -367,6 +416,11 @@ end
 if ~isa(data,'int16')
     data=int16(data);
 end
+
+%% Channels to export
+ChExport= listdlg('PromptString',...
+        'select channels to export:','ListString',chStr);
+data=data(ChExport,:);
 
 % plots
 % figure; hold on;

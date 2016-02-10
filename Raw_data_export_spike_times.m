@@ -12,6 +12,8 @@ recentDataFolder=[dataDir dataDirListing(fDateIdx(1)).name '\'];
 dataDirListing=dir(recentDataFolder);
 [~,fDateIdx]=sort([dataDirListing.datenum],'descend');
 recentDataFolder=[recentDataFolder dataDirListing(fDateIdx(1)).name '\'];
+% declarations
+axis_name= @(x) sprintf('Chan %.0f',x);
 
 %% Get file path
 [fname,dname] = uigetfile({'*.continuous;*.kwik;*.kwd;*.kwx;*.nex;*.ns*','All Data Formats';...
@@ -99,6 +101,9 @@ elseif strfind(fname,'.ns')
     disp(['took ' num2str(toc) ' seconds to load data']);
 end
 
+% channel string
+chStr= num2str(linspace(1,size(data,1),size(data,1))');
+
 %% Pre-processing options
 if strcmp(filterOption,'lowpass')
     %% butterworth low-pass
@@ -131,53 +136,49 @@ elseif strcmp(filterOption,'movav')
         data(chNm,:)=data(chNm,:)-int16(movAverage);
     end
 elseif  strcmp(filterOption,'CAR')
-    %% common average referencing
-    
+    %% common average referencing   
     % butterworth band-pass
     [b,a] = butter(3,[500 6000]/(rec.samplingRate/2),'bandpass');
     for chNm=1:size(data,1)
         data(chNm,:)= filter(b,a,single(data(chNm,:)));
     end
     % select channels to use for CAR
+    dataOneSecSample=data(:,round(size(data,2)/2)-rec.samplingRate:round(size(data,2)/2)+rec.samplingRate);
     figure('position',[727,81,1160,899]);
     subplot(1,2,1);  hold on;
-    for ChN=1:size(data,1)
-        plot(data(ChN,round(size(data,2)/2)-rec.samplingRate:...
-            round(size(data,2)/2)+rec.samplingRate)+(max(max(data))*(ChN-1)));
+    for ChN=1:size(data,1)  
+        plot(double(dataOneSecSample(ChN,:))+(max(mean(dataOneSecSample))*(ChN-1)));
     end
     set(gca,'xtick',linspace(0,rec.samplingRate*2,4),...
         'xticklabel',linspace(round((round(size(data,2)/2)-rec.samplingRate)/rec.samplingRate),...
         round((round(size(data,2)/2)+rec.samplingRate)/rec.samplingRate),4),'TickDir','out');
-    set(gca,'ytick',linspace(0,double(max(max(data))*(ChN-1)),16),'yticklabel',...
-        {'Chan 1','Chan 2','Chan 3','Chan 4','Chan 5','Chan 6','Chan 7','Chan 8',...
-        'Chan 9','Chan 10','Chan 11','Chan 12','Chan 13','Chan 14','Chan 15','Chan 16'})
+    set(gca,'ytick',linspace(0,double(max(mean(dataOneSecSample))*(ChN-1)),size(data,1)),'yticklabel',...
+        cellfun(axis_name, num2cell(1:size(data,1)), 'UniformOutput', false))
     %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
     axis('tight');box off;
     xlabel('Time - 2 sec mid-recording')
     ylabel('Bandpassed 500 - 6kHz raw signal')
     set(gca,'Color','white','FontSize',14,'FontName','calibri');
     
-    str= num2str(linspace(1,size(data,1),size(data,1))');
     ChRef= listdlg('PromptString',...
-        'select channels to use for CAR to plot:','ListString',str);
+        'select channels to use for CAR to plot:','ListString',chStr);
     data=(data-repmat(median(data(ChRef,:),1),[size(data,1),1]));%./mad(faa,1);
+    dataOneSecSample=data(:,round(size(data,2)/2)-rec.samplingRate:round(size(data,2)/2)+rec.samplingRate);
     subplot(1,2,2);  hold on;
-    for ChN=1:size(data,1)
-        plot(data(ChN,round(size(data,2)/2)-rec.samplingRate:...
-            round(size(data,2)/2)+rec.samplingRate)+(max(max(data))*(ChN-1)));
+    for ChN=1:size(data,1)  
+        plot(double(dataOneSecSample(ChN,:))+(max(mean(dataOneSecSample))*(ChN-1)));
     end
     set(gca,'xtick',linspace(0,rec.samplingRate*2,4),...
         'xticklabel',linspace(round((round(size(data,2)/2)-rec.samplingRate)/rec.samplingRate),...
         round((round(size(data,2)/2)+rec.samplingRate)/rec.samplingRate),4),'TickDir','out');
-    set(gca,'ytick',linspace(0,double(max(max(data))*(ChN-1)),16),'yticklabel',...
-        {'Chan 1','Chan 2','Chan 3','Chan 4','Chan 5','Chan 6','Chan 7','Chan 8',...
-        'Chan 9','Chan 10','Chan 11','Chan 12','Chan 13','Chan 14','Chan 15','Chan 16'})
+    set(gca,'ytick',linspace(0,double(max(mean(dataOneSecSample))*(ChN-1)),size(data,1)),'yticklabel',...
+        cellfun(axis_name, num2cell(1:size(data,1)), 'UniformOutput', false))
     %   set(gca,'ylim',[-1000,10000],'xlim',[0,1800000])
     axis('tight');box off;
     xlabel('Time - 2 sec mid-recording')
     ylabel('Bandpassed 500 - 6kHz raw signal, CAR')
     title('Common average referencing')
-    set(gca,'Color','white','FontSize',14,'FontName','calibri');    
+    set(gca,'Color','white','FontSize',14,'FontName','calibri'); 
 elseif  strcmp(filterOption,'norm')
     %% normalization following Pouzat's method
 % data is high-passed filtered with a cutoff frequency between 200 and 500 Hz
@@ -417,43 +418,60 @@ if ~isa(data,'int16')
     data=int16(data);
 end
 
-Spikes.samplingRate=rec.samplingRate;
-
 %% Channels to export
 ChExport= listdlg('PromptString',...
-        'select channels to export:','ListString',str);
+        'select channels to export:','ListString',chStr);
 for ChExN=1:size(ChExport,2)
 Spikes.channel(ChExN)=ChExport(ChExN);
+Spikes.samplingRate(ChExN,1)=rec.samplingRate;
 thld=rms((data(Spikes.channel(ChExN),:)));
 
 % plots
 % figure; hold on;
-% plot(data(Spikes.channel,:));
+% plot(data(Spikes.channel(ChExN),1:300*Spikes.samplingRate));
 % % plot(data(Spikes.channel,:)+1500);
 % % thd10=rms((data(10,:)));
-% plot(-5*thd*ones(1,size(data,2)));
-% plot(-20*thd*ones(1,size(data,2)));
-% plot(1500-4*thd*ones(1,size(data,2)));
-
+% plot(-7*thld*ones(1,size(1:300*Spikes.samplingRate,2)));
+% plot(-40*thld*ones(1,size(1:300*Spikes.samplingRate,2)));
+% % plot(1500-4*thd*ones(1,size(data,2)));
+% % foo=data(Spikes.channel(ChExN),:)>(-40*thld);
 %% get spike times
-Spikes.nativeData{ChExN}=diff(data(Spikes.channel(ChExN),:)<-5*thld & data(Spikes.channel(ChExN),:)>-20*thld)==1;
+Spikes.data{ChExN,1}=diff(data(Spikes.channel(ChExN),:)<-7*thld)==1;
+Spikes.type{ChExN,1}='nativeData';
 % plot(Spikes.nativeData*500);
 
 %% downsample to 1 millisecond bins
-Spikes.samplingRate(2)=1000;
-spikeTimeIdx=zeros(1,size(Spikes.nativeData{ChExN},2));
-spikeTimeIdx(Spikes.nativeData{ChExN})=1;
-spikeTimes=find(Spikes.nativeData{ChExN});
+Spikes.samplingRate(ChExN,2)=1000;
+Spikes.type{ChExN,2}='downSampled';
+spikeTimeIdx=zeros(1,size(Spikes.data{ChExN,1},2));
+spikeTimeIdx(Spikes.data{ChExN,1})=1;
+spikeTimes=find(Spikes.data{ChExN,1});
 binSize=1;
-numBin=ceil(size(spikeTimeIdx,2)/(Spikes.samplingRate/1000)/binSize);
+numBin=ceil(size(spikeTimeIdx,2)/(Spikes.samplingRate(ChExN,1)/Spikes.samplingRate(ChExN,2))/binSize);
 % binspikeTime = histogram(double(spikeTimes), numBin); %plots directly histogram
-[Spikes.downSampled{ChExN},Spikes.binEdges{ChExN}] = histcounts(double(spikeTimes), numBin);
-Spikes.downSampled{ChExN}(Spikes.downSampled{ChExN}>1)=1;
-
+[Spikes.data{ChExN,2},Spikes.binEdges{ChExN}] = histcounts(double(spikeTimes), linspace(0,size(spikeTimeIdx,2),numBin));
+Spikes.data{ChExN,2}(Spikes.data{ChExN,2}>1)=1; %no more than 1 spike per ms
+    
 % figure;
 % bar(Spikes.binEdges(1:end-1)+round(mean(diff(Spikes.binEdges))/2),Spikes.downSampled,'hist');
 
 end
+
+%% add clock time (time at which recording started, to sync with TTLs)
+% to check Software Time and Processor Time, run h5read('experiment1.kwe','/event_types/Messages/events/user_data/Text')
+if h5readatt('experiment1.kwe','/recordings/0/','start_time')==0
+    Spikes.clockStartTime=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
+    Spikes.clockStartTime=Spikes.clockStartTime(1);
+else
+    Spikes.clockStartTime=h5readatt('experiment1.kwe','/recordings/0/','start_time');
+end
+
+%% get TTL times and structure
+dataDirListing=dir;
+fname=regexp(fname,'^\w+\d\_','match');fname=fname{1}(1:end-1);
+%making sure it exists
+fname=dataDirListing(~cellfun('isempty',cellfun(@(x) strfind(x,[fname '.kwe']),{dataDirListing.name},'UniformOutput',false))).name;
+Trials=getOE_Trials(fname);
 
 %% Export
 cd('C:\Data\export');
@@ -500,7 +518,7 @@ end
 expname=[expname{end}(2:end) '_' rec.sys '_' filterOption];
 % expname=[expname{end}(2:dateStart)  '_Spikes_Ch' num2str(Spikes.channel)];
 tic;
-save(expname,'Spikes');
+save(expname,'Spikes','Trials');
 
 % fileID = fopen([expname '.dat'],'w');
 % fwrite(fileID,Spikes,'int16');

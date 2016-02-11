@@ -436,7 +436,7 @@ thld=rms((data(Spikes.channel(ChExN),:)));
 % % plot(1500-4*thd*ones(1,size(data,2)));
 % % foo=data(Spikes.channel(ChExN),:)>(-40*thld);
 %% get spike times
-Spikes.data{ChExN,1}=diff(data(Spikes.channel(ChExN),:)<-7*thld)==1;
+Spikes.data{ChExN,1}=diff(data(Spikes.channel(ChExN),:)<-5*thld)==1;
 Spikes.type{ChExN,1}='nativeData';
 % plot(Spikes.nativeData*500);
 

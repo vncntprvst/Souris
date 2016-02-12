@@ -23,7 +23,21 @@ expname=regexp(strrep(dname,'-','_'),'\\\w+','match');
 disp(['loading ' dname fname]);
 if strfind(fname,'continuous')
     %% Open Ephys old format
-    [data, timestamps, info] = load_open_ephys_data([dname fname]);
+    %list all .continuous data files
+    fileListing=dir;
+    fileChNum=regexp({fileListing.name},'(?<=CH)\d+(?=.cont)','match');
+    trueFileCh=~cellfun('isempty',fileChNum);
+    fileListing=fileListing(trueFileCh);
+    [~,fileChOrder]=sort(cellfun(@(x) str2double(x{:}),fileChNum(trueFileCh)));
+    fileListing=fileListing(fileChOrder);
+    for chNum=1:size(fileListing,1)
+        [data(chNum,:), timestamps(chNum,:), info(chNum)] = load_open_ephys_data([dname fileListing(chNum).name]);
+    end
+    %get basic info about recording
+    rec.dur=timestamps(1,end);
+    rec.samplingRate=info(1).header.sampleRate;
+    rec.numRecChan=chNum;
+    rec.date=info(1).header.date_created;
 elseif strfind(fname,'raw.kwd')
     %% Kwik format - raw data
     % The last number in file name from Open-Ephys recording is Node number
@@ -457,21 +471,32 @@ Spikes.data{ChExN,2}(Spikes.data{ChExN,2}>1)=1; %no more than 1 spike per ms
 
 end
 
-%% add clock time (time at which recording started, to sync with TTLs)
-% to check Software Time and Processor Time, run h5read('experiment1.kwe','/event_types/Messages/events/user_data/Text')
-if h5readatt('experiment1.kwe','/recordings/0/','start_time')==0
-    Spikes.clockStartTime=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
-    Spikes.clockStartTime=Spikes.clockStartTime(1);
+%% get clock time (time at which recording started, to sync with TTLs)
+if strfind(fname,'raw.kwd')
+    % to check Software Time and Processor Time, run h5read('experiment1.kwe','/event_types/Messages/events/user_data/Text')
+    if h5readatt('experiment1.kwe','/recordings/0/','start_time')==0
+        Spikes.clockTimes=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
+        Spikes.clockTimes=Spikes.clockTimes(1);
+    else
+        Spikes.clockTimes=h5readatt('experiment1.kwe','/recordings/0/','start_time');
+    end
 else
-    Spikes.clockStartTime=h5readatt('experiment1.kwe','/recordings/0/','start_time');
+        Spikes.clockTimes=info(1).ts;
 end
 
 %% get TTL times and structure
-dataDirListing=dir;
-fname=regexp(fname,'^\w+\d\_','match');fname=fname{1}(1:end-1);
-%making sure it exists
-fname=dataDirListing(~cellfun('isempty',cellfun(@(x) strfind(x,[fname '.kwe']),{dataDirListing.name},'UniformOutput',false))).name;
-Trials=getOE_Trials(fname);
+if strfind(fname,'raw.kwd')
+    fileListing=dir;
+    fname=regexp(fname,'^\w+\d\_','match');fname=fname{1}(1:end-1);
+    %making sure it exists
+    fname=fileListing(~cellfun('isempty',cellfun(@(x) strfind(x,[fname '.kwe']),{fileListing.name},'UniformOutput',false))).name;
+    Trials=getOE_Trials(fname);
+elseif strfind(fname,'continuous')
+    Trials=getOE_Trials('all_channels.events');
+elseif strfind(fname,'nex')
+    % not coded yet
+end
+    
 
 %% Export
 cd('C:\Data\export');

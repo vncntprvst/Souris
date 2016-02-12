@@ -1,18 +1,20 @@
-load('PrV77_32__2016_01_30_02_09_00_OEph_CAR'); 
+function [ephysCommonTrials, behaviorCommonTrials]=match_trials(ephysTrials,Behavior)
+
+% load('PrV77_32__2016_01_30_02_09_00_OEph_CAR'); 
 %clocktest_TTLs_OEformat_2016_02_11_15_06_07_OEph_CAR clocktest_1_2016_02_10_22_52_02_OEph_CAR
-Behavior=processBehaviorData;
+% Behavior=processBehaviorData;
 
 % no need to downsample - already done
 %downSamplingRatio=uint64(Spikes.samplingRate(1,1)/Spikes.samplingRate(1,2));
 
 %msTTL_TrialStart=double(Trials.start)/double(downSamplingRatio);
-TTL_TrialStart=Trials.start;
+TTL_TrialStart=ephysTrials.start;
 zeroed_TTL_TrialStart=TTL_TrialStart-TTL_TrialStart(1)+1;
 zeroed_TTL_TrialStartIdx=false(1,ceil(zeroed_TTL_TrialStart(end)));
 zeroed_TTL_TrialStartIdx(int32(round(zeroed_TTL_TrialStart)))=true;
 
 % msTTL_TrialEnd=double(Trials.end)/double(downSamplingRatio);
-TTL_TrialEnd=Trials.end;
+TTL_TrialEnd=ephysTrials.end;
 zeroed_TTL_TrialEnd=TTL_TrialEnd-TTL_TrialStart(1)+1;
 zeroed_TTL_TrialEndIdx=false(1,ceil(zeroed_TTL_TrialEnd(end)));
 zeroed_TTL_TrialEndIdx(int32(round(zeroed_TTL_TrialEnd)))=true;
@@ -44,8 +46,11 @@ plot(zeroed_Behav_TrialStartIdx_binned*0.5)
 find(zeroed_TTL_TrialStartIdx_binned,10)
 find(zeroed_Behav_TrialStartIdx_binned,10)
 
-commonTrials=ismember(find(zeroed_Behav_TrialStartIdx_binned),find(zeroed_TTL_TrialStartIdx_binned)) |...
+behaviorCommonTrials=ismember(find(zeroed_Behav_TrialStartIdx_binned),find(zeroed_TTL_TrialStartIdx_binned)) |...
 ismember(find(zeroed_Behav_TrialStartIdx_binned),find(zeroed_TTL_TrialStartIdx_binned)+1) |...
 ismember(find(zeroed_Behav_TrialStartIdx_binned),find(zeroed_TTL_TrialStartIdx_binned)-1);
 
-
+ephysCommonTrials=ismember(find(zeroed_TTL_TrialStartIdx_binned),find(zeroed_Behav_TrialStartIdx_binned)) |...
+ismember(find(zeroed_TTL_TrialStartIdx_binned),find(zeroed_Behav_TrialStartIdx_binned)+1) |...
+ismember(find(zeroed_TTL_TrialStartIdx_binned),find(zeroed_Behav_TrialStartIdx_binned)-1);
+end

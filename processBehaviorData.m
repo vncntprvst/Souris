@@ -1,17 +1,17 @@
 
-function Behavior=processBehaviorData(fileName,dName)
+function Behavior=processBehaviorData(fileName,dirName)
 % fileName='C:\Data\Behav\PrV77_32_2016-01-30T02_06_59.csv';
 behavDir='C:\Data\Behav';
 
 switch nargin
     case 0
-        [fileName,dName] = uigetfile({'*.csv','.csv Files';...
+        [fileName,dirName] = uigetfile({'*.csv','.csv Files';...
             '*.*','All Files' },'Behavior Data',behavDir);
-        cd(dName)
+        cd(dirName)
     case 1
         cd(behavDir)
     case 2
-        cd(dName)
+        cd(dirName)
 end
 
 Behavior=readTrialData(fileName,'C:\Data\Behav');
@@ -29,21 +29,19 @@ Behavior.intervals=[0;diff(vertcat(Behavior.trialTime{:}))];
 Behavior.trialStartIdx=Behavior.trialType==0;
 
 %% failed trials
-% 2/11/16 - currently, no failed/timeout trials - bug gives ~ unlimited time to get reward
-%  but a spurious 0 is inserted right after trial (without TTLout(2)) +> changed that now. 
-if sum(diff(Behavior.trialType)==0)
-    Behavior.trialStartIdx(diff(Behavior.trialType)==0)=0;
+% old recordings: no failed/timeout trials - bug gave ~ unlimited time to get reward
+%  although a spurious 0 was inserted right after trial (without TTLout(2))
+% 2/11/16 +> changed that in Training2_Front_then_Side_Ports_PCcontrol_2FrontLEDs
+% Timeout after 10 seconds. Timeout code added (90).
+if datetime < Behavior.fileRecodingDate
+    if sum(diff(Behavior.trialType)==0)
+        Behavior.trialStartIdx(diff(Behavior.trialType)==0)=0;
+    end
+    Behavior.failedTrials=ceil(find([diff(Behavior.trialType)==0;0]&Behavior.trialStartIdx)/2);
+    
+    Behavior.trialStartTime=[Behavior.trialTime{Behavior.trialStartIdx}]';
+else
+    Behavior.timeoutTrial=find(Behavior.trialType(logical([0;Behavior.trialStartIdx(1:end-1)]))==90);
 end
-Behavior.failedTrials=ceil(find([diff(Behavior.trialType)==0;0]&Behavior.trialStartIdx)/2);
-
-Behavior.trialStartTime=[Behavior.trialTime{Behavior.trialStartIdx}]';
-
 end
-
-
-
-
-
-
-
 

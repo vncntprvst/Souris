@@ -21,6 +21,7 @@ fileID = fopen(filename,'r');
 
 %% get file open time from first line
 fileStartTime=regexp(fgets(fileID),'\d+','match');
+csvFile.fileRecodingDate=datetime([fileStartTime{1} '-' fileStartTime{2} '-' fileStartTime{3}]);
 csvFile.fileStartTime=hours(str2num(fileStartTime{4})) + ...
     minutes(str2num(fileStartTime{5})) + ...
     seconds(str2num([fileStartTime{6} '.' fileStartTime{7}]));

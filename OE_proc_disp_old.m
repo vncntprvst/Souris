@@ -91,32 +91,34 @@ switch whichformat{:}
         KeepChans=1:size(ChanData,2);
         
         %% get Trial structure
-        % h5disp('experiment1.kwik','/event_types/TTL')
-        % TTLinfo=h5info('experiment1.kwik','/event_types/TTL');
-        
-        TTL_ID = h5read('experiment1.kwe','/event_types/TTL/events/user_data/eventID');
-        TTL_times = h5read('experiment1.kwe','/event_types/TTL/events/time_samples');
-        % keep absolute time of TTL onset
-        TTL_times=TTL_times(diff([0;TTL_ID])>0);
-        % TTL sequence
-        TTL_seq=diff(TTL_times);
-        %we send 10ms TTLs, with 10ms interval. Two pulses for begining of trial
-        %(e.g.,head through front panel). With sampling rate of 30kHz, that
-        % interval should be 601 samples (20ms*30+1). Or 602 accounting for jitter.
-        % TTL_seq should thus read as:
-        %   601
-        %   end of trial time
-        %   inter-trial interval
-        if TTL_seq(1)>=610 %missed first trial initiation, discard times
-            TTL_seq(1)=999;
-        end
-        if TTL_seq(end)<=610 %unfinished last trial
-            TTL_seq(end)=999;
-        end
+%         % h5disp('experiment1.kwik','/event_types/TTL')
+%         % TTLinfo=h5info('experiment1.kwik','/event_types/TTL');
+%         
+%         TTL_ID = h5read('experiment1.kwe','/event_types/TTL/events/user_data/eventID');
+%         TTL_times = h5read('experiment1.kwe','/event_types/TTL/events/time_samples');
+%         % keep absolute time of TTL onset
+%         TTL_times=TTL_times(diff([0;TTL_ID])>0);
+%         % TTL sequence
+%         TTL_seq=diff(TTL_times);
+%         %we send 10ms TTLs, with 10ms interval. Two pulses for begining of trial
+%         %(e.g.,head through front panel). With sampling rate of 30kHz, that
+%         % interval should be 601 samples (20ms*30+1). Or 602 accounting for jitter.
+%         % TTL_seq should thus read as:
+%         %   601
+%         %   end of trial time
+%         %   inter-trial interval
+%         if TTL_seq(1)>=610 %missed first trial initiation, discard times
+%             TTL_seq(1)=999;
+%         end
+%         if TTL_seq(end)<=610 %unfinished last trial
+%             TTL_seq(end)=999;
+%         end
         
         Trials.start=TTL_times([TTL_seq<=610;false]);%Trials.start=Trials.start./uint64(SamplingRate/1000)
         Trials.end=TTL_times(find([TTL_seq<=610;false])+2);
         Trials.interval=TTL_times(find([TTL_seq<=610;false])+3)-TTL_times(find([TTL_seq<=610;false])+2);
+        
+        Trials=getOE_Trials(['experiment1' '.kwe']);
         
     case 'nex'
         % do something
@@ -129,6 +131,9 @@ Rasters.epochnames={'BeginTrial','EndTrial'};
 for chan=1:length(KeepChans)
     [Rasters.channels{chan,1},Rasters.channels{chan,2}]=deal(zeros(size(Trials.start,1),2000));
     Spkt=ChanData(KeepChans(chan)).SpikeTimes;
+    if isempty(Spkt)
+        continue
+    end
     for trialnb=1:size(Trials.start,1)
         %Collect spikes from 1st epoch (begining of trial)
         RastSWin=Trials.start(trialnb)-uint64(SamplingRate); % 1 sec before

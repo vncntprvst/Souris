@@ -30,9 +30,9 @@ if strfind(fname,'continuous')
     fileListing=fileListing(trueFileCh);
     [~,fileChOrder]=sort(cellfun(@(x) str2double(x{:}),fileChNum(trueFileCh)));
     fileListing=fileListing(fileChOrder);
-    for chNum=1:size(fileListing,1)
-        [data(chNum,:), timestamps(chNum,:), info(chNum)] = load_open_ephys_data([dname fileListing(chNum).name]);
-    end
+%     for chNum=1:size(fileListing,1)
+        [data(chNum,:), timestamps(chNum,:), info(chNum)] = load_open_ephys_multi_data({fileListing.name});
+%     end
     %get basic info about recording
     rec.dur=timestamps(1,end);
     rec.samplingRate=info(1).header.sampleRate;
@@ -66,12 +66,12 @@ elseif strfind(fname,'raw.kwd')
     rec.samplingRate=h5readatt(fname,rawInfo.Groups.Name,'sample_rate');
     rec.bitDepth=h5readatt(fname,rawInfo.Groups.Name,'bit_depth');
     %   rec.numSpikeChan= size(chanInfo.Groups.Groups,1); %number of channels with recored spikes
-    rec.numRecChan=rawInfo.Groups.Datasets.Dataspace.Size-3;  %number of raw data channels.
+    rec.numRecChan=rawInfo.Groups.Datasets.Dataspace.Size;  %number of raw data channels.
     % Last 3 are headstage's AUX channels (e.g accelerometer)
     
     %load data (only recording channels)
     tic;
-    data=h5read(fname,'/recordings/0/data',[1 1],[rec.numRecChan(1) Inf]);
+    data=h5read(fname,'/recordings/0/data',[1 1],[1 rec.numRecChan(2)]);
     disp(['took ' num2str(toc) ' seconds to load data']);
 elseif strfind(fname,'kwik')
     %% Kwik format - spikes
@@ -474,11 +474,11 @@ end
 %% get clock time (time at which recording started, to sync with TTLs)
 if strfind(fname,'raw.kwd')
     % to check Software Time and Processor Time, run h5read('experiment1.kwe','/event_types/Messages/events/user_data/Text')
-    if h5readatt('experiment1.kwe','/recordings/0/','start_time')==0
+    if h5readatt(fname,'/recordings/0/','start_time')==0
         Spikes.clockTimes=h5read('experiment1.kwe','/event_types/Messages/events/time_samples');
         Spikes.clockTimes=Spikes.clockTimes(1);
     else
-        Spikes.clockTimes=h5readatt('experiment1.kwe','/recordings/0/','start_time');
+        Spikes.clockTimes=h5readatt(fname,'/recordings/0/','start_time');
     end
 else
         Spikes.clockTimes=info(1).ts;

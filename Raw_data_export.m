@@ -22,8 +22,22 @@ cd(dname);
 expname=regexp(strrep(dname,'-','_'),'\\\w+','match');
 disp(['loading ' dname fname]);
 if strfind(fname,'continuous')
-    %% Open Ephys old format
-    [data, timestamps, info] = load_open_ephys_data([dname fname]);
+   %% Open Ephys old format
+    %list all .continuous data files
+    fileListing=dir;
+    fileChNum=regexp({fileListing.name},'(?<=CH)\d+(?=.cont)','match');
+    trueFileCh=~cellfun('isempty',fileChNum);
+    fileListing=fileListing(trueFileCh);
+    [~,fileChOrder]=sort(cellfun(@(x) str2double(x{:}),fileChNum(trueFileCh)));
+    fileListing=fileListing(fileChOrder);
+%     for chNum=1:size(fileListing,1)
+        [data(chNum,:), timestamps(chNum,:), info(chNum)] = load_open_ephys_multi_data({fileListing.name});
+%     end
+    %get basic info about recording
+    rec.dur=timestamps(1,end);
+    rec.samplingRate=info(1).header.sampleRate;
+    rec.numRecChan=chNum;
+    rec.date=info(1).header.date_created;
 elseif strfind(fname,'raw.kwd')
     %% Kwik format - raw data
     % The last number in file name from Open-Ephys recording is Node number

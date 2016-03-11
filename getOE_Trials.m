@@ -20,8 +20,8 @@ else
     % TTLinfo=h5info('experiment1.kwe','/event_types/TTL');
     TTL_ID = h5read(fileName,'/event_types/TTL/events/user_data/eventID');
     TTL_times = h5read(fileName,'/event_types/TTL/events/time_samples');
-    sampleRate = h5readatt(fileName,'/recordings/0/','sample_rate');
-    TTL_times = TTL_times./uint64(sampleRate/1000); %convert to ms scale
+    TTL.sampleRate = h5readatt(fileName,'/recordings/0/','sample_rate');
+    TTL_times = TTL_times./uint64(TTL.sampleRate/1000); %convert to ms scale
 end
 
 % keep absolute time of TTL onset

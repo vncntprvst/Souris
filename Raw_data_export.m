@@ -1,7 +1,7 @@
 %% Convert and export data to "raw" format
 
 extra=0;
-filterOption='nopp'; % CAR nopp norm difffilt lowpass 'movav' 'multifilt';
+filterOption='CAR'; % CAR nopp norm difffilt lowpass 'movav' 'multifilt';
 
 %get most recently changed data folder
 dataDir='C:\Data\';
@@ -104,6 +104,7 @@ elseif strfind(fname,'.ns')
     %% Blackrock raw data
     tic;
     data = openNSxNew(fname);
+    analogData = openNSxNew([fname(1:end-1) '2']);
     %get basic info about recording
     rec.dur=data.MetaTags.DataPoints;
     rec.samplingRate=data.MetaTags.SamplingFreq;
@@ -460,7 +461,16 @@ elseif regexp(expname{end}(2:end),'^\d\d\d\d')
 elseif regexp(expname{end}(2:end),'\_\d\d\d\d')
     dateStart=regexp(expname{end}(2:end),'\_\d\d\d\d');
 else
-    return;
+    try
+        fileListing=dir(dname);
+        rec.date=fileListing(~cellfun('isempty',strfind({fileListing.name},fname))).date;
+        rec.date=strrep(rec.date,'-','_');
+        rec.date=strrep(rec.date,' ','_');
+        rec.date=strrep(rec.date,':','_');
+        dateStart=size(expname{end},2);
+    catch
+        return;
+    end
 end
 if ~isfield(rec,'date')
     dateItems=regexp(expname{end}(2+dateStart:end),'\d+','match');
@@ -477,7 +487,7 @@ switch rec.sys
     case 'TBSI'
         rec.sys='TBSI';
     case 'Blackrock'
-        rec.sys='Rock';
+        rec.sys='BR';
 end
 
 expname=[expname{end}(2:dateStart) '_' rec.date '_' rec.sys uname(1) filterOption];

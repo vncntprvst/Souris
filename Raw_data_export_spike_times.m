@@ -104,6 +104,7 @@ elseif strfind(fname,'.ns')
     %% Blackrock raw data
     tic;
     data = openNSxNew(fname);
+    events = openNEV([dname fname(1:end-3) 'nev']);
     %get basic info about recording
     rec.dur=data.MetaTags.DataPoints;
     rec.samplingRate=data.MetaTags.SamplingFreq;
@@ -537,7 +538,7 @@ switch rec.sys
     case 'TBSI'
         rec.sys='TBSI';
     case 'Blackrock'
-        rec.sys='Rock';
+        rec.sys='BR';
 end
 
 expname=[expname{end}(2:end) '_' rec.sys '_' filterOption];

@@ -15,7 +15,7 @@ end
 
 % plot all spikes and trials
 figure; hold on
-plot(Spikes.Offline_Threshold.data{16, 1}  )
+plot(Spikes.Offline_Threshold.data{12, 1}  )
 
 %Trials times are already converted in ms scale (
 % -> should keep original timing
@@ -30,11 +30,11 @@ plot(Spikes.Offline_Threshold.data{16, 1}  )
 
 
 for TTLNum=1:size(Trials.start,1)
-patch([Trials.start(TTLNum)*30-Spikes.clockTimes:Trials.end(TTLNum)*30-Spikes.clockTimes,...
-    fliplr(Trials.start(TTLNum)*30-Spikes.clockTimes:Trials.end(TTLNum)*30-Spikes.clockTimes)],...
-    [zeros(1,Trials.end(TTLNum)*30-Trials.start(TTLNum)*30+1),...
-    ones(1,Trials.end(TTLNum)*30-Trials.start(TTLNum)*30+1)*2],...
-    [0.5 0.5 0.5],'EdgeColor','none','FaceAlpha',0.2);
+patch([Trials.start(TTLNum)-Trials.startClockTime:Trials.end(TTLNum)-Trials.startClockTime,...
+    fliplr(Trials.start(TTLNum)-Trials.startClockTime:Trials.end(TTLNum)-Trials.startClockTime)],...
+    [zeros(1,Trials.end(TTLNum)-Trials.start(TTLNum)+1),...
+    ones(1,Trials.end(TTLNum)-Trials.start(TTLNum)+1)*2],...
+    [0.5 0.5 0.5],'EdgeColor','none','FaceAlpha',0.5);
 end
 
 % switch whichformat
@@ -55,7 +55,7 @@ Rasters.epochnames={'BeginTrial','EndTrial'};
 for chan=1:length(KeepChans)
     downSamplingRatio=uint64(Spikes.samplingRate(chan,1)/Spikes.samplingRate(chan,2));
     [Rasters.channels{chan,1},Rasters.channels{chan,2}]=deal(zeros(size(Trials.start,1),1501));
-    Spkt=[zeros(1,round(Spikes.clockTimes/downSamplingRatio)) Spikes.data{KeepChans(chan),2}(1,:)];
+    Spkt=[zeros(1,round(Trials.startClockTime/downSamplingRatio)) Spikes.data{KeepChans(chan),2}(1,:)];
     if Trials.end(end)>size(Spkt,2)
         continue
     end

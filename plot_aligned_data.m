@@ -1,11 +1,41 @@
 %% Align and display rasters and sdf
 
 %% Get file path
-[fileName,dirName] = uigetfile({'*.mat','Matlab';'*.dat','Flat data';...
+[fileName,dirName] = uigetfile({'*.mat; *.hdf5','Processed data';'*.dat','Flat data';...
     '*.*','All Files' },'Exported data','C:\Data\export');
 cd(dirName);
-load(fileName);
-Behavior=processBehaviorData;
+
+% load file data
+if strfind(fileName,'.mat')
+    load(fileName);
+    Behavior=processBehaviorData;
+elseif strfind(fileName,'.hdf5')
+    Spikes.Offline_SpkSort.data{16,1}=h5read(fileName,'/times_15');
+end
+
+% plot all spikes and trials
+figure; hold on
+plot(Spikes.Offline_Threshold.data{16, 1}  )
+
+%Trials times are already converted in ms scale (
+% -> should keep original timing
+% -> change Spikes.clockTimes to Trials.clockTime
+
+% Unless I screwed up and used StimPulse_kbControl, instead of
+% Laser_Pulse_Control, stim params were 20ms High, 80ms Low.
+% But Trials.end(1)-Trials.start(1) = 200ms. And looks like there may be
+% upwards of 18ms delay on Digital IN detection. 
+% -> check TTL_times in getOE_Trials
+% -> check TTL rise and fall time. Plug TTL input to Analog IN.
+
+
+for TTLNum=1:size(Trials.start,1)
+patch([Trials.start(TTLNum)*30-Spikes.clockTimes:Trials.end(TTLNum)*30-Spikes.clockTimes,...
+    fliplr(Trials.start(TTLNum)*30-Spikes.clockTimes:Trials.end(TTLNum)*30-Spikes.clockTimes)],...
+    [zeros(1,Trials.end(TTLNum)*30-Trials.start(TTLNum)*30+1),...
+    ones(1,Trials.end(TTLNum)*30-Trials.start(TTLNum)*30+1)*2],...
+    [0.5 0.5 0.5],'EdgeColor','none','FaceAlpha',0.2);
+end
 
 % switch whichformat
 %     case

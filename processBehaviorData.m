@@ -32,7 +32,8 @@ Behavior.trialStartIdx=Behavior.trialType==0;
 % old recordings: no failed/timeout trials - bug gave ~ unlimited time to get reward
 %  although a spurious 0 was inserted right after trial (without TTLout(2))
 % 2/11/16 +> changed that in Training2_Front_then_Side_Ports_PCcontrol_2FrontLEDs
-% Timeout after 10 seconds. Timeout code added (90).
+% Timeout after 10 seconds. Timeout code added (9x). x stands for task type (1/2 for left/right)
+% 3/16/16 +> Incorrect reward port code added (8x) in TextureDiscriminationTask.
 if datetime < Behavior.fileRecodingDate
     if sum(diff(Behavior.trialType)==0)
         Behavior.trialStartIdx(diff(Behavior.trialType)==0)=0;

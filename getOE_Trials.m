@@ -1,4 +1,4 @@
-function TTL=getOE_Trials(fileName)
+function Trials=getOE_Trials(fileName)
 %% get Trial structure from TTLs
 
 switch nargin
@@ -11,47 +11,62 @@ switch nargin
 end
 
 if strfind(fileName,'events')
-   [~, TTL_times, info] = load_open_ephys_data(fileName);
+   [~, Trials.TTL_times, info] = load_open_ephys_data(fileName);
    TTLevents=info.eventType==3;
    TTL_ID=info.eventId(TTLevents);
-   TTL_times=TTL_times(TTLevents).*1000; %convert to ms scale
+   Trials.TTL_times=Trials.TTL_times(TTLevents); %convert to ms scale later
+   disp('Trials sampling rate?')
+   return
 else
     % h5disp('experiment1.kwe','/event_types/TTL')
     % TTLinfo=h5info('experiment1.kwe','/event_types/TTL');
     TTL_ID = h5read(fileName,'/event_types/TTL/events/user_data/eventID');
-    TTL_times = h5read(fileName,'/event_types/TTL/events/time_samples');
-    TTL.sampleRate = h5readatt(fileName,'/recordings/0/','sample_rate');
-    TTL_times = TTL_times./uint64(TTL.sampleRate/1000); %convert to ms scale
+    Trials.TTL_times = h5read(fileName,'/event_types/TTL/events/time_samples');
+    Trials.samplingRate{1} = h5readatt(fileName,'/recordings/0/','sample_rate');
+%     Trials.TTL_times = Trials.TTL_times./uint64(Trials.samplingRate{1}/Trials.samplingRate{2}); %convert to ms scale
 end
 
 % keep absolute time of TTL onset
-TTL_times=TTL_times(diff([0;TTL_ID])>0);
-% TTL sequence
-TTL_seq=diff(TTL_times);
+% Trials.TTL_times=Trials.TTL_times(diff([0;TTL_ID])>0);
+% TTL sequence (in ms)
+Trials.samplingRate{2} = 1000;
+TTL_seq=diff(Trials.TTL_times)./uint64(Trials.samplingRate{1}/Trials.samplingRate{2}); % convert to ms
+TTLlength=mode(TTL_seq); %in ms
 
-    % sending 10ms TTLs, with 10ms interval. Two pulses for begining of trial
-    %(e.g.,head through front panel). With sampling rate of 30kHz, that
-    % interval should be 601 samples (20ms*30+1). Or 602 accounting for jitter.
-    % TTL_seq at native sampling rate should thus read as:
+onTTL_seq=diff(Trials.TTL_times(diff([0;TTL_ID])>0))./uint64(Trials.samplingRate{1}/Trials.samplingRate{2});
+    % In behavioral recordings, task starts with double TTL (e.g., two 10ms
+    % TTLs, with 10ms interval). These pulses are sent at the begining of 
+    % each trial(e.g.,head through front panel). One pulse is sent at the 
+    % end of each trial. With sampling rate of 30kHz, that interval should
+    % be 601 samples (20ms*30+1). Or 602 accounting for jitter.
+    % onTTL_seq at native sampling rate should thus read as:
     %   601
     %   end of trial time
     %   inter-trial interval
     %   601 ... etc
-
-TTLlength=mode(TTL_seq)/2; %might want to code a better TTL length detector
-
-if TTL_seq(1)>=TTLlength*2+10 %missed first trial initiation, discard times
+    % in Stimulation recordings, there are only Pulse onsets, i.e., no
+    % double TTL to start, and no TTL to end
+    
+if TTL_seq(1)>=TTLlength+10 %missed first trial initiation, discard times
     TTL_seq(1)=TTLlength+300;
+    onTTL_seq(1)=TTLlength+300;
 end
-if TTL_seq(end)<=TTLlength*2+10 %unfinished last trial
+if TTL_seq(end-1)<=TTLlength+10 %unfinished last trial
     TTL_seq(end)=TTLlength+300;
+    onTTL_seq(end)=TTLlength+300;
 end
 
-TTL.start=TTL_times([TTL_seq<=TTLlength*2+10;false]);%Trials.start=Trials.start./uint64(SamplingRate/1000)
-TTL.end=TTL_times(find([TTL_seq<=TTLlength*2+10;false])+2);
-try
-    TTL.interval=TTL_times(find([TTL_seq(1:end-3)<=TTLlength+10;false])+3)-TTL_times(find([TTL_seq(1:end-3)<=TTLlength+10;false])+2);
-catch
-    TTL.interval=[]; %
+Trials.start=Trials.TTL_times([TTL_seq<=TTLlength*2+10;false]);%Trials.start=Trials.start./uint64(SamplingRate/1000)
+if  size(unique(onTTL_seq),1)>1 %behavioral recordings
+    Trials.end=Trials.TTL_times(find([TTL_seq<=TTLlength*2+10;false])+2);
+    try
+    Trials.interval=Trials.TTL_times(find([TTL_seq(1:end-3)<=TTLlength+10;false])+3)-Trials.TTL_times(find([TTL_seq(1:end-3)<=TTLlength+10;false])+2);
+    catch
+    Trials.interval=[]; %
+    end
+elseif  size(unique(onTTL_seq),1)==1 %stimulation recordings: trial ends when stimulation ends
+    Trials.end=Trials.TTL_times([false;TTL_seq<=TTLlength*2+10]);
+    Trials.interval=onTTL_seq; %
 end
+
 end

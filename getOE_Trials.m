@@ -69,4 +69,7 @@ elseif  size(unique(onTTL_seq),1)==1 %stimulation recordings: trial ends when st
     Trials.interval=onTTL_seq; %
 end
 
+%convert to ms
+Trials.start(:,2)=Trials.start(:,1)./uint64(Trials.samplingRate{1}/Trials.samplingRate{2});
+Trials.end(:,2)=Trials.end(:,1)./uint64(Trials.samplingRate{1}/Trials.samplingRate{2});
 end

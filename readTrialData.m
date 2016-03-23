@@ -22,10 +22,10 @@ fileID = fopen(filename,'r');
 %% get file open time from first line
 fileStartTime=regexp(fgets(fileID),'\d+','match');
 csvFile.fileRecodingDate=datetime([fileStartTime{1} '-' fileStartTime{2} '-' fileStartTime{3}]);
-csvFile.fileStartTime=hours(str2num(fileStartTime{4})) + ...
-    minutes(str2num(fileStartTime{5})) + ...
-    seconds(str2num([fileStartTime{6} '.' fileStartTime{7}]));
-csvFile.fileStartTimeSubMilli=str2num(fileStartTime{7});
+csvFile.fileStartTime=hours(str2double(fileStartTime{4})) + ...
+    minutes(str2double(fileStartTime{5})) + ...
+    seconds(str2double([fileStartTime{6} '.' fileStartTime{7}]));
+csvFile.fileStartTimeSubMilli=str2double(fileStartTime{7});
 frewind(fileID);
 
 %% Read data 
@@ -39,12 +39,13 @@ fclose(fileID);
 csvFile.trialNumber = dataArray{:, 1};
 csvFile.trialType = dataArray{:, 2};
 csvFile.successCount = dataArray{:, 3};
-csvFile.trialTime=cellfun(@(x) regexp(x,'\d+','match'),dataArray{:, 4},'UniformOutput',false);
-cellfun(@(x) seconds(datetime(x,03,17,19,10,14.6383744)-datetime(2016,1,1))    csvFile.trialTime
-seconds(duration(19,10,14.6383744))*1000
- foo=csvFile.trialTime(1:2)
-cellfun(@(x) datetime([x{1} '-' x{2} '-' x{3}],'InputFormat','yyyy-MM-dd'),foo,'UniformOutput',false)
-
+csvFile.eventTime=cellfun(@(x) regexp(x,'\d+','match'),dataArray{:, 4},'UniformOutput',false);
+csvFile.eventTime_ms=cellfun(@(x) 1000*(seconds(datetime(str2double(x{1}),str2double(x{2}),str2double(x{3}))...
+    -datetime(str2double(x{1}),1,1))+ seconds(duration(str2double(x{4}),str2double(x{5}),str2double([x{6} '.' x{7}])))),...
+    csvFile.trialTime,'UniformOutput',false);
+% csvFile.eventTime_ms=cellfun(@(x) 1000*(seconds(duration(str2double(x{4}),str2double(x{5}),str2double([x{6} '.' x{7}])))),...
+%     csvFile.trialTime,'UniformOutput',false);
+csvFile.eventTime_ms=cellfun(@(x) x-csvFile.eventTime_ms{1}, csvFile.eventTime_ms,'UniformOutput',false);
 
 %% Clear temporary variables
 clearvars filename delimiter startRow formatSpec fileID dataArray ans fileStartTime;

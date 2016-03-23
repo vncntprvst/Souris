@@ -40,6 +40,11 @@ csvFile.trialNumber = dataArray{:, 1};
 csvFile.trialType = dataArray{:, 2};
 csvFile.successCount = dataArray{:, 3};
 csvFile.trialTime=cellfun(@(x) regexp(x,'\d+','match'),dataArray{:, 4},'UniformOutput',false);
+cellfun(@(x) seconds(datetime(x,03,17,19,10,14.6383744)-datetime(2016,1,1))    csvFile.trialTime
+seconds(duration(19,10,14.6383744))*1000
+ foo=csvFile.trialTime(1:2)
+cellfun(@(x) datetime([x{1} '-' x{2} '-' x{3}],'InputFormat','yyyy-MM-dd'),foo,'UniformOutput',false)
+
 
 %% Clear temporary variables
 clearvars filename delimiter startRow formatSpec fileID dataArray ans fileStartTime;

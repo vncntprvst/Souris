@@ -14,8 +14,25 @@ if strfind(fileName,'.mat')
         Behavior=[];
     end
 elseif strfind(fileName,'.hdf5')
-    Spikes.Offline_SpkSort.data{16,1}=h5read(fileName,'/times_15');
+    fileName=regexp(fileName,'\w+(?=\.\w+\.)','match','once');
+    Spikes.Offline_SpkSort.Units{5,1}=h5read([fileName '.clusters.hdf5'],'/clusters_4');
+    Spikes.Offline_SpkSort.SpikeTimes{5,1}=h5read([fileName '.clusters.hdf5'],'/times_4');
+%     Spikes.Offline_SpkSort.Waveforms{16,1}=h5read([fileName '.clusters.hdf5'],'/data_15');
+    Spikes.Offline_SpkSort.Waveforms=h5read([fileName '.templates.hdf5'],'/temp_data');
 end
+
+%load raw data
+load('ChR2_6_51_OEph_16Ch_CAR_raw.mat')
+%create index of chunks to extract
+Ch5.Clus2.SpikeTimes=Spikes.Offline_SpkSort.SpikeTimes{5,1}(Spikes.Offline_SpkSort.Units{5,1}==2);
+
+Ch5.Clus2.Waveforms=ExtractChunks(foo(5,:),Ch5.Clus2.SpikeTimes,60);
+
+figure;
+plot(mean(Ch5.Clus2.Waveforms))
+hold on 
+plot(mean(Ch5.Clus2.Waveforms)+std(double(Ch5.Clus2.Waveforms)))
+plot(mean(Ch5.Clus2.Waveforms)-std(double(Ch5.Clus2.Waveforms)))
 
 %
 Trials.start=Trials.start-Trials.startClockTime;
@@ -25,12 +42,12 @@ Trials.end=Trials.end-Trials.startClockTime;
 figure; hold on
 plot(Spikes.Offline_Threshold.data{16, 1},'k')
 plot(Spikes.Offline_SpkSort.data{16, 1},ones(1,size(Spikes.Offline_SpkSort.data{16, 1},1))*0.5,'sr')
-
+yLims=get(gca,'ylim')
 for TTLNum=1:size(Trials.start,1)
 patch([Trials.start(TTLNum):Trials.end(TTLNum),...
     fliplr(Trials.start(TTLNum):Trials.end(TTLNum))],...
-    [zeros(1,Trials.end(TTLNum)-Trials.start(TTLNum)+1),...
-    ones(1,Trials.end(TTLNum)-Trials.start(TTLNum)+1)],...
+    [ones(1,Trials.end(TTLNum)-Trials.start(TTLNum)+1)*yLims(1),...
+    ones(1,Trials.end(TTLNum)-Trials.start(TTLNum)+1)*yLims(2)],...
     [0.3 0.75 0.93],'EdgeColor','none','FaceAlpha',0.5);
 end
 

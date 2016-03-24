@@ -56,15 +56,17 @@ if TTL_seq(end-1)<=TTLlength+10 %unfinished last trial
     onTTL_seq(end)=TTLlength+300;
 end
 
-Trials.start=Trials.TTL_times([TTL_seq<=TTLlength*2+10;false]);%Trials.start=Trials.start./uint64(SamplingRate/1000)
+allTrialTimes=Trials.TTL_times([1; find(bwlabel([0;diff(TTL_seq)]))+1]);
 if  size(unique(onTTL_seq),1)>1 %behavioral recordings start: ON/OFF ON/OFF .... end: ON/OFF
-    Trials.end=Trials.TTL_times(find([TTL_seq<=TTLlength*2+10;false])+2);
+    Trials.start=allTrialTimes(1:2:end);
+    Trials.end=allTrialTimes(2:2:end);
     try
-    Trials.interval=Trials.TTL_times(find([TTL_seq(1:end-3)<=TTLlength+10;false])+3)-Trials.TTL_times(find([TTL_seq(1:end-3)<=TTLlength+10;false])+2);
+        Trials.interval=Trials.end(1:end-1)-Trials.start(2:end);
     catch
-    Trials.interval=[]; %
+        Trials.interval=[]; %
     end
 elseif  size(unique(onTTL_seq),1)==1 %stimulation recordings: trial ends when stimulation ends start: ON, end: OFF
+    Trials.start=Trials.TTL_times([TTL_seq<=TTLlength*2+10;false]);%Trials.start=Trials.start./uint64(SamplingRate/1000)
     Trials.end=Trials.TTL_times([false;TTL_seq<=TTLlength*2+10]);
     Trials.interval=onTTL_seq; %
 end

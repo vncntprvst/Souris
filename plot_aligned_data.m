@@ -17,15 +17,16 @@ elseif strfind(fileName,'.hdf5')
     fileName=regexp(fileName,'\w+(?=\.\w+\.)','match','once');
     Spikes.Offline_SpkSort.Units{5,1}=h5read([fileName '.clusters.hdf5'],'/clusters_4');
     Spikes.Offline_SpkSort.SpikeTimes{5,1}=h5read([fileName '.clusters.hdf5'],'/times_4');
-%     Spikes.Offline_SpkSort.Waveforms{16,1}=h5read([fileName '.clusters.hdf5'],'/data_15');
+    Spikes.Offline_SpkSort.Waveforms{16,1}=h5read([fileName '.clusters.hdf5'],'/data_15');
     Spikes.Offline_SpkSort.Waveforms=h5read([fileName '.templates.hdf5'],'/temp_data');
+    Spikes.Offline_SpkSort.templates{10,1}.spiketimes=h5read([fileName '.result.hdf5'],'/spiketimes/temp_10');
+    Spikes.Offline_SpkSort.templates{10,1}.amplitudes=h5read([fileName '.result.hdf5'],'/amplitudes/temp_10');
 end
 
 %load raw data
-load('ChR2_6_51_OEph_16Ch_CAR_raw.mat')
+% load('ChR2_6_51_OEph_16Ch_CAR_raw.mat')
 %create index of chunks to extract
 Ch5.Clus2.SpikeTimes=Spikes.Offline_SpkSort.SpikeTimes{5,1}(Spikes.Offline_SpkSort.Units{5,1}==2);
-
 Ch5.Clus2.Waveforms=ExtractChunks(foo(5,:),Ch5.Clus2.SpikeTimes,60);
 
 figure;
@@ -40,14 +41,14 @@ Trials.end=Trials.end-Trials.startClockTime;
 
 % plot all spikes and trials
 figure; hold on
-plot(Spikes.Offline_Threshold.data{16, 1},'k')
-plot(Spikes.Offline_SpkSort.data{16, 1},ones(1,size(Spikes.Offline_SpkSort.data{16, 1},1))*0.5,'sr')
-yLims=get(gca,'ylim')
+plot(Spikes.Offline_Threshold.data{3, 1},'k')
+plot(Spikes.Offline_SpkSort.data{3, 1},ones(1,size(Spikes.Offline_SpkSort.data{3, 1},1))*0.5,'sr')
+yLims=get(gca,'ylim');
 for TTLNum=1:size(Trials.start,1)
-patch([Trials.start(TTLNum):Trials.end(TTLNum),...
-    fliplr(Trials.start(TTLNum):Trials.end(TTLNum))],...
-    [ones(1,Trials.end(TTLNum)-Trials.start(TTLNum)+1)*yLims(1),...
-    ones(1,Trials.end(TTLNum)-Trials.start(TTLNum)+1)*yLims(2)],...
+patch([Trials.start(TTLNum,2)*30:Trials.end(TTLNum,2)*30,...
+    fliplr(Trials.start(TTLNum,2)*30:Trials.end(TTLNum,2)*30)],...
+    [ones(1,Trials.end(TTLNum,2)*30-Trials.start(TTLNum,2)*30+1)*yLims(1),...
+    ones(1,Trials.end(TTLNum,2)*30-Trials.start(TTLNum,2)*30+1)*yLims(2)],...
     [0.3 0.75 0.93],'EdgeColor','none','FaceAlpha',0.5);
 end
 
@@ -62,11 +63,12 @@ KeepChans=Spikes.Offline_Threshold.channel;
 Rasters.channels=cell(length(KeepChans),2);
 Rasters.epochnames={'BeginTrial','EndTrial'};
 preAlignWindow(1)=0.08; %80ms
-preAlignWindow(2)=round(uint64(Spikes.Offline_Threshold.samplingRate(chan,2))/(1/preAlignWindow(1)));
 postAlignWindow(1)=0.08; %80ms
-postAlignWindow(2)=round(uint64(Spikes.Offline_Threshold.samplingRate(chan,2))/(1/postAlignWindow(1)));
 for chan=1:length(KeepChans)
-%     downSamplingRatio=uint64(Spikes.Offline_Threshold.samplingRate(chan,1)/Spikes.Offline_Threshold.samplingRate(chan,2));
+    preAlignWindow(2)=round(uint64(Spikes.Offline_Threshold.samplingRate(chan,2))/(1/preAlignWindow(1)));
+    postAlignWindow(2)=round(uint64(Spikes.Offline_Threshold.samplingRate(chan,2))/(1/postAlignWindow(1)));
+
+    %     downSamplingRatio=uint64(Spikes.Offline_Threshold.samplingRate(chan,1)/Spikes.Offline_Threshold.samplingRate(chan,2));
     [Rasters.channels{chan,1},Rasters.channels{chan,2}]=deal(zeros(size(Trials.start,1),preAlignWindow(2)+postAlignWindow(2)+1));
     Spkt=Spikes.Offline_Threshold.data{KeepChans(chan),2}(1,:);
     if Trials.end(end)>size(Spkt,2)
@@ -125,7 +127,7 @@ patch([repmat(midl,1,2) repmat(midl+Trials.end(1,2)-Trials.start(1,2),1,2)], ...
 % patch([repmat(midl-3,1,2) repmat(midl+3,1,2)], ...
 %     [[0 currylim(2)] fliplr([0 currylim(2)])], ...
 %     [0 0 0 0],[0.8 0 0],'EdgeColor','none','FaceAlpha',0.8);
-title('Neural response to 80% stimulation intensity, aligned to stimulation onset');
+title('Neural response to 100% stimulation intensity, aligned to stimulation onset');
 hcb = colorbar('southoutside');
 hcb.Label.String = 'z-scored firing rate';
 

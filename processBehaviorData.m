@@ -1,12 +1,20 @@
-
-function Behavior=processBehaviorData(fileName,dirName)
+function [Behavior,Performance]=processBehaviorData(fileName,dirName,drawPlots)
 % fileName='C:\Data\Behav\PrV77_32_2016-01-30T02_06_59.csv';
 behavDir='C:\Data\Behav';
+if nargin<3
+    drawPlots=1;
+end
+Behavior=struct('fileRecordingDate',[],'fileStartTime',[],...
+    'fileStartTimeSubMilli',[],'trialNumberIdx',[],...
+    'trialEventType',[],'successCount',[],'eventTime',[],...
+    'eventTime_ms',[],'trials',[]);
+Performance=struct('ReportSides',[],'gTrialsCumDist',[],...
+    'overallPerf',[],'instantPerf',[]);
 
 switch nargin
     case 0
         [fileName,dirName] = uigetfile({'*.csv','.csv Files';...
-            '*.*','All Files' },'Behavior Data',behavDir);
+            '*.*','All Files' },'Behavior Data',behavDir,'MultiSelect','on');
         cd(dirName)
     case 1
         cd(behavDir)
@@ -14,35 +22,83 @@ switch nargin
         cd(dirName)
 end
 
-Behavior=readTrialData(fileName,'C:\Data\Behav');
-
-%convert trial times to milliseconds, with exact sub-ms precision
-Behavior.trialTime=cellfun(@(x) (floor(seconds(hours(str2double(x{4})) + ...
-    minutes(str2double(x{5})) + ...
-    seconds(str2double(x{6})))) + ...
-    str2double(['0.' x{7}]))*1000, Behavior.trialTime,'UniformOutput',false);
-
-%intervals
-Behavior.intervals=[0;diff(vertcat(Behavior.trialTime{:}))];
-
-%index trials
-Behavior.trialStartIdx=Behavior.trialType==0;
-
-%% failed trials
-% old recordings: no failed/timeout trials - bug gave ~ unlimited time to get reward
-%  although a spurious 0 was inserted right after trial (without TTLout(2))
-% 2/11/16 +> changed that in Training2_Front_then_Side_Ports_PCcontrol_2FrontLEDs
-% Timeout after 10 seconds. Timeout code added (9x). x stands for task type (1/2 for left/right)
-% 3/16/16 +> Incorrect reward port code added (8x) in TextureDiscriminationTask.
-if datetime < Behavior.fileRecodingDate
-    if sum(diff(Behavior.trialType)==0)
-        Behavior.trialStartIdx(diff(Behavior.trialType)==0)=0;
-    end
-    Behavior.failedTrials=ceil(find([diff(Behavior.trialType)==0;0]&Behavior.trialStartIdx)/2);
-    
-    Behavior.trialStartTime=[Behavior.trialTime{Behavior.trialStartIdx}]';
-else
-    Behavior.timeoutTrial=find(Behavior.trialType(logical([0;Behavior.trialStartIdx(1:end-1)]))==90);
+if ~iscell(fileName)
+    fileName={fileName};
 end
+if size(fileName,2)>1
+    drawPlots=0;
+end
+
+for fileNum=1:size(fileName,2)
+    
+    fileNameSuffix=regexp(fileName{fileNum},'\w+(?=_.+$)','match');
+    fileNameSuffix=fileNameSuffix{1};
+    try
+        Behavior(fileNum)=readTrialData(fileName{fileNum},'C:\Data\Behav');
+    catch
+        continue
+    end
+    if Behavior(fileNum).fileRecordingDate<datetime(2016,3,16)
+        continue
+    end
+    % Intervals
+    % trialDuration=Behavior(fileNum).trials.trialEndTime-Behavior(fileNum).trials.trialStartTime;
+    % ITI=Behavior(fileNum).trials.trialStartTime(2:end)-Behavior(fileNum).trials.trialEndTime(1:end-1);
+    
+    % Side bias
+    Performance(fileNum).ReportSides=hist(Behavior(fileNum).trials.trialOutcomeType(Behavior(fileNum).trials.correctTrialIdx(:,1),1),2);
+    
+    % Cumulative distribution of correct trials
+    Performance(fileNum).gTrialsCumDist=cumsum(Behavior(fileNum).trials.correctTrialIdx(:,1))./...
+        max(cumsum(Behavior(fileNum).trials.correctTrialIdx(:,1)))*100;
+    
+    %Performance
+    Performance(fileNum).overallPerf=sum(Behavior(fileNum).trials.correctTrialIdx(:,1))/...
+        size(Behavior(fileNum).trials.correctTrialIdx(:,1),1);
+    Performance(fileNum).instantPerf=cumsum(Behavior(fileNum).trials.correctTrialIdx(:,1))./...
+        (1:size(Behavior(fileNum).trials.correctTrialIdx(:,1),1))';
+    
+    %Plots
+    if drawPlots==1
+        figure('Name',fileNameSuffix,'NumberTitle','off','position',[1000 215 800 750])
+        colormap lines;
+        cmap = colormap(gcf);
+        
+        subplot(2,2,1)
+        bar(Performance(fileNum).ReportSides);
+        set(gca,'xticklabel',{'Left','Right'})
+        set(gca,'Color','white','TickDir','out')
+        title('Correct answers, Left vs Right')
+        
+        subplot(2,2,2)
+        plot(round(Behavior(fileNum).trials.trialEndTime/60000),...
+            Performance(fileNum).gTrialsCumDist,'LineWidth',1.5,'Color',cmap(2,:))
+        axis(gca,'tight'); box off;
+        set(gca,'Color','white','TickDir','out')
+        xlabel('Time (mn)')
+        ylabel('% of total correct trials')
+        title('Cumulative sum of correct trials')
+        
+        subplot(2,2,3:4)
+        plot(round(Behavior(fileNum).trials.trialEndTime/60000),...
+            Performance(fileNum).instantPerf,'LineWidth',1.5,'Color',cmap(4,:))
+        axis(gca,'tight'); box off;
+        set(gca,'Color','white','TickDir','out','ylim',[0 1])
+        xlabel('Time (mn)')
+        ylabel('Instantaneous performance level')
+        title('Success rate')
+        
+        % figure
+        % subplot(2,1,1)
+        % plot(trialDuration)
+        % title('trial duration')
+        % subplot(2,1,2)
+        % plot(ITI)
+        % title('inter-trial interval')
+    end
+    
+end
+
+
 end
 

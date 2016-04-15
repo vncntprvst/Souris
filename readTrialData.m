@@ -21,7 +21,7 @@ fileID = fopen(filename,'r');
 
 %% get file open time from first line
 fileStartTime=regexp(fgets(fileID),'\d+','match');
-csvFile.fileRecodingDate=datetime([fileStartTime{1} '-' fileStartTime{2} '-' fileStartTime{3}]);
+csvFile.fileRecordingDate=datetime([fileStartTime{1} '-' fileStartTime{2} '-' fileStartTime{3}]);
 csvFile.fileStartTime=hours(str2double(fileStartTime{4})) + ...
     minutes(str2double(fileStartTime{5})) + ...
     seconds(str2double([fileStartTime{6} '.' fileStartTime{7}]));
@@ -36,16 +36,43 @@ dataArray = textscan(fileID, formatSpec, 'Delimiter', delimiter, 'HeaderLines' ,
 fclose(fileID);
 
 %% Allocate imported array to column variable names
-csvFile.trialNumber = dataArray{:, 1};
-csvFile.trialType = dataArray{:, 2};
+csvFile.trialNumberIdx = dataArray{:, 1};
+csvFile.trialEventType = dataArray{:, 2};
 csvFile.successCount = dataArray{:, 3};
 csvFile.eventTime=cellfun(@(x) regexp(x,'\d+','match'),dataArray{:, 4},'UniformOutput',false);
+%convert trial times to milliseconds, with exact sub-ms precision
 csvFile.eventTime_ms=cellfun(@(x) 1000*(seconds(datetime(str2double(x{1}),str2double(x{2}),str2double(x{3}))...
     -datetime(str2double(x{1}),1,1))+ seconds(duration(str2double(x{4}),str2double(x{5}),str2double([x{6} '.' x{7}])))),...
     csvFile.eventTime,'UniformOutput',false);
+csvFile.eventTime_ms=cellfun(@(x) x-csvFile.eventTime_ms{1}, csvFile.eventTime_ms,'UniformOutput',false);
 % csvFile.eventTime_ms=cellfun(@(x) 1000*(seconds(duration(str2double(x{4}),str2double(x{5}),str2double([x{6} '.' x{7}])))),...
 %     csvFile.trialTime,'UniformOutput',false);
-csvFile.eventTime_ms=cellfun(@(x) x-csvFile.eventTime_ms{1}, csvFile.eventTime_ms,'UniformOutput',false);
+% cellfun(@(x) (floor(seconds(hours(str2double(x{4})) + ...
+%     minutes(str2double(x{5})) + ...
+%     seconds(str2double(x{6})))) + ...
+%     str2double(['0.' x{7}]))*1000, csvFile.eventTime,'UniformOutput',false);
 
 %% Clear temporary variables
-clearvars filename delimiter startRow formatSpec fileID dataArray ans fileStartTime;
+clearvars delimiter startRow formatSpec fileID dataArray ans fileStartTime;
+
+%Identify trial starts and ends
+eventSequence=diff(mod(csvFile.trialNumberIdx,2));
+csvFile.trials=struct('trialNumber',unique(csvFile.trialNumberIdx),...
+    'trialRetroIndex',find([1;eventSequence]~=0),...
+    'trialStartTime',[csvFile.eventTime_ms{[1;eventSequence]~=0}]',...
+    'trialEndTime',[csvFile.eventTime_ms{[eventSequence;1]~=0}]',...
+    'trialType',csvFile.trialEventType([1;eventSequence]~=0),...
+    'trialOutcomeType',[csvFile.trialEventType([false;[1;diff(mod(csvFile.trialNumberIdx(1:end-1),2))]~=0]),... %first column: First answer
+                        csvFile.trialEventType([eventSequence;1]~=0)]);  %2nd column: eventual answer (only different in relaxed constraint conditions
+
+%% failed trials
+% old recordings: no failed/timeout trials - bug gave ~ unlimited time to get reward
+%  although a spurious 0 was inserted right after trial (without TTLout(2))
+% 2/11/16 +> changed that in Training2_Front_then_Side_Ports_PCcontrol_2FrontLEDs
+% Timeout after 10 seconds. Timeout code added (9x). x stands for task type (1/2 for left/right)
+% 3/16/16 +> Incorrect reward port code added (8x) in TextureDiscriminationTask.
+csvFile.trials.errorTrialIdx=round(csvFile.trials.trialOutcomeType/10)==8;
+csvFile.trials.timeoutTrialIdx=round(csvFile.trials.trialOutcomeType/10)==9;
+csvFile.trials.correctTrialIdx=~(csvFile.trials.errorTrialIdx |csvFile.trials.timeoutTrialIdx);
+
+end

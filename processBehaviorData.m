@@ -58,6 +58,13 @@ for fileNum=1:size(fileName,2)
     Performance(fileNum).instantPerf=cumsum(Behavior(fileNum).trials.correctTrialIdx(:,1))./...
         (1:size(Behavior(fileNum).trials.correctTrialIdx(:,1),1))';
     
+    %Hit rate (probability to go to the correct reward port when texture is
+    %present
+    Performance(fileNum).hitRate=sum(Behavior(fileNum).trials.trialType==1 & Behavior(fileNum).trials.correctTrialIdx(:,1))/...
+        sum(Behavior(fileNum).trials.trialType==1);
+    Performance(fileNum).falseAlarm=sum(Behavior(fileNum).trials.trialType==2 & Behavior(fileNum).trials.errorTrialIdx(:,1))/...
+        sum(Behavior(fileNum).trials.trialType==2);
+    
     %Plots
     if drawPlots==1
         figure('Name',fileNameSuffix,'NumberTitle','off','position',[1000 215 800 750])
@@ -87,6 +94,8 @@ for fileNum=1:size(fileName,2)
         xlabel('Time (mn)')
         ylabel('Instantaneous performance level')
         title('Success rate')
+        
+        % plot d' over sliding window of 20 trials 
         
         % figure
         % subplot(2,1,1)

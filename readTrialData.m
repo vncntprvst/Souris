@@ -57,6 +57,15 @@ clearvars delimiter startRow formatSpec fileID dataArray ans fileStartTime;
 
 %Identify trial starts and ends
 eventSequence=diff(mod(csvFile.trialNumberIdx,2));
+if eventSequence(end)~=0
+lastEvent=find([1;eventSequence]==0,1,'last');
+eventSequence=eventSequence(1:lastEvent-1);
+csvFile.trialNumberIdx=csvFile.trialNumberIdx(1:lastEvent);
+csvFile.trialEventType=csvFile.trialEventType(1:lastEvent);
+             csvFile.successCount=csvFile.successCount(1:lastEvent);
+                csvFile.eventTime=csvFile.eventTime(1:lastEvent);
+             csvFile.eventTime_ms=csvFile.eventTime_ms(1:lastEvent);
+end
 csvFile.trials=struct('trialNumber',unique(csvFile.trialNumberIdx),...
     'trialRetroIndex',find([1;eventSequence]~=0),...
     'trialStartTime',[csvFile.eventTime_ms{[1;eventSequence]~=0}]',...

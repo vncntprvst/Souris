@@ -8,7 +8,7 @@ Behavior=struct('fileRecordingDate',[],'fileStartTime',[],...
     'fileStartTimeSubMilli',[],'trialNumberIdx',[],...
     'trialEventType',[],'successCount',[],'eventTime',[],...
     'eventTime_ms',[],'trials',[]);
-Performance=struct('ReportSides',[],'gTrialsCumDist',[],...
+Performance=struct('CorrectSides',[],'gTrialsCumDist',[],...
     'overallPerf',[],'instantPerf',[]);
 
 switch nargin
@@ -46,7 +46,10 @@ for fileNum=1:size(fileName,2)
     % ITI=Behavior(fileNum).trials.trialStartTime(2:end)-Behavior(fileNum).trials.trialEndTime(1:end-1);
     
     % Side bias
-    Performance(fileNum).ReportSides=hist(Behavior(fileNum).trials.trialOutcomeType(Behavior(fileNum).trials.correctTrialIdx(:,1),1),2);
+    Performance(fileNum).CorrectSides=hist(Behavior(fileNum).trials.trialOutcomeType(Behavior(fileNum).trials.correctTrialIdx(:,1),1),2);
+    
+    % Errors
+    Performance(fileNum).IncorrectSides=hist(Behavior(fileNum).trials.trialOutcomeType(Behavior(fileNum).trials.errorTrialIdx(:,1),1),2);
     
     % Cumulative distribution of correct trials
     Performance(fileNum).gTrialsCumDist=cumsum(Behavior(fileNum).trials.correctTrialIdx(:,1))./...
@@ -71,13 +74,19 @@ for fileNum=1:size(fileName,2)
         colormap lines;
         cmap = colormap(gcf);
         
-        subplot(2,2,1)
-        bar(Performance(fileNum).ReportSides);
+        subplot(2,3,1)
+        bar(Performance(fileNum).CorrectSides);
         set(gca,'xticklabel',{'Left','Right'})
         set(gca,'Color','white','TickDir','out')
-        title('Correct answers, Left vs Right')
+        title('Correct answers') 
         
-        subplot(2,2,2)
+        subplot(2,3,2)
+        bar(Performance(fileNum).IncorrectSides);
+        set(gca,'xticklabel',{'Left','Right'})
+        set(gca,'Color','white','TickDir','out')
+        title('Incorrect answers')
+        
+        subplot(2,3,3)
         plot(round(Behavior(fileNum).trials.trialEndTime/60000),...
             Performance(fileNum).gTrialsCumDist,'LineWidth',1.5,'Color',cmap(2,:))
         axis(gca,'tight'); box off;
@@ -86,7 +95,7 @@ for fileNum=1:size(fileName,2)
         ylabel('% of total correct trials')
         title('Cumulative sum of correct trials')
         
-        subplot(2,2,3:4)
+        subplot(2,3,4:6)
         plot(round(Behavior(fileNum).trials.trialEndTime/60000),...
             Performance(fileNum).instantPerf,'LineWidth',1.5,'Color',cmap(4,:))
         axis(gca,'tight'); box off;

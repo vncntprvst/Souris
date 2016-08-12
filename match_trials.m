@@ -19,8 +19,8 @@ zeroed_TTL_TrialEnd=TTL_TrialEnd-TTL_TrialStart(1)+1;
 zeroed_TTL_TrialEndIdx=false(1,ceil(zeroed_TTL_TrialEnd(end)));
 zeroed_TTL_TrialEndIdx(int32(round(zeroed_TTL_TrialEnd)))=true;
 
-Behav_TrialStart=[Behavior.trialTime{Behavior.trialStartIdx}];
-Behav_TrialStart=Behav_TrialStart(1:end); %(2:end) if missed first trial
+Behav_TrialStart=Behavior.trials.trialStartTime;%[Behavior.trialTime{Behavior.trialStartIdx}];
+% Behav_TrialStart=Behav_TrialStart(1:end); %(2:end) if missed first trial
 % msBehav_TrialStart=[Behavior.trialTime{1:end}]; %plot all timestamps for
 % comparison purposes
 zeroed_Behav_TrialStart=Behav_TrialStart-Behav_TrialStart(1)+1;

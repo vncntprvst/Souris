@@ -113,6 +113,10 @@ for fileNum=1:size(fileName,2)
         % subplot(2,1,2)
         % plot(ITI)
         % title('inter-trial interval')
+        
+        %print figure
+        print(gcf, '-dpdf', '-noui', '-painters', fileName{:}(1:end-4));
+        
     end
     
 end

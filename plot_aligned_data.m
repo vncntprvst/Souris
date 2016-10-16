@@ -15,7 +15,7 @@ if strfind(fileName,'.mat')
     end
 elseif strfind(fileName,'.hdf5')
     fileName=regexp(fileName,'\w+(?=\.\w+\.)','match','once');
-    for chNum=1:16
+    for chNum=1:6
         try
         Spikes.Offline_Sorting.Units{chNum,1}=h5read([fileName '.clusters.hdf5'],...
             ['/clusters_' num2str(chNum-1)]);
@@ -35,7 +35,7 @@ end
 % Ch5.Clus2.SpikeTimes Ch5.Clus2.Waveforms
 % KeepChans=[1,4,9,15,16];
 % KeepChans=1:16;
-KeepChans=[1,4,9,15,16];
+KeepChans=[1];
 for chNum=1:length(KeepChans)
     try
         units=unique(Spikes.Offline_Sorting.Units{KeepChans(chNum),1});units=units(units>0);
@@ -45,14 +45,16 @@ for chNum=1:length(KeepChans)
         %         mostUnit=units(numUnits==max(numUnits));
         %         SpikeTimes{KeepChans(chNum)}=Spikes.Offline_Sorting.SpikeTimes{KeepChans(chNum),1}(Spikes.Offline_Sorting.Units{KeepChans(chNum),1}==mostUnit);
         SpikeTimes{KeepChans(chNum)}=Spikes.Offline_Sorting.SpikeTimes{KeepChans(chNum),1}...
-            (Spikes.Offline_Sorting.Units{KeepChans(chNum),1}==1 &...
-            Spikes.Offline_Sorting.Units{KeepChans(chNum),1}==2);
+            (Spikes.Offline_Sorting.Units{KeepChans(chNum),1}==2); %  &...
+%             Spikes.Offline_Sorting.Units{KeepChans(chNum),1}==2);
         
         SpikeTimesArray{KeepChans(chNum)}=zeros(1,ceil(SpikeTimes{KeepChans(chNum)}(end)...
-            /int32(Spikes.Online_Sorting.samplingRate(KeepChans(chNum))/1000)));
+            /uint32(Spikes.Online_Sorting.samplingRate(KeepChans(chNum))/1000)));
         SpikeTimesArray{KeepChans(chNum)}(round(SpikeTimes{KeepChans(chNum)}/...
-            int32(Spikes.Online_Sorting.samplingRate(KeepChans(chNum))/1000)))=1;
+            uint32(Spikes.Online_Sorting.samplingRate(KeepChans(chNum))/1000)))=1;
         Waveforms{KeepChans(chNum)}=ExtractChunks(rawData(KeepChans(chNum),:),SpikeTimes{KeepChans(chNum)},60,'tmiddle'); %'tzero' 'tmiddle'
+         Waveforms{KeepChans(chNum)}=Spikes.Offline_Sorting.Waveforms{KeepChans(chNum),1}...
+            (Spikes.Offline_Sorting.Units{KeepChans(chNum),1}==2,:);
     catch
     end
 end

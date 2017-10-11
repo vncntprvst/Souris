@@ -71,10 +71,14 @@ plot(dsSpikeTimes,ones(length(dsSpikeTimes),1)*-250,'r*')
 % plot(dsSpikeTimes,ones(length(dsSpikeTimes),1)*-220,'*')
 
 %% compute sdf
-sdf=GaussConv(binSpikeTime,5)*1000;
+sdf=GaussConv(binSpikeTime,20)*1000;
 figure; hold on
 plot(sdf)
 plot(dsSpikeTimes,zeros(length(dsSpikeTimes),1),'r*')
+
+%% compute raster 
+[indy, indx] = ind2sub(size(binSpikeTime),find(binSpikeTime)); %find row and column coordinates of spikes
+% rasters=[indx indy;indx indy+1];
 
 %% make high-pass and low pass periodic behavior traces 
 lp_periodBehavData=FilterTrace(periodBehavData,0.3,1000,'low');
@@ -86,22 +90,42 @@ figure; hold on
 plot(periodBehavData-mean(periodBehavData)); plot(bp_periodBehavData,'LineWidth',1)
 
 % lp_periodBehavData=lp_periodBehavData(1:length(sdf));
-% bp_periodBehavData=bp_periodBehavData(1:length(sdf));
+bp_periodBehavData=bp_periodBehavData(1:length(sdf));
 
 %% plot traces together
 figure; hold on
-trace=periodBehavData-mean(periodBehavData); plot(trace); shift=ceil(max(trace));
-trace=lp_periodBehavData-min(lp_periodBehavData); plot(trace+shift); shift=shift+ceil(max(trace));
-trace=sdf-min(sdf); plot(trace+shift); shift=shift+ceil(max(trace));
-trace=bp_periodBehavData*3-min(bp_periodBehavData); plot(trace+shift);
+trace=periodBehavData-mean(periodBehavData); plot(trace); shift(1)=ceil(max(trace));
+trace=lp_periodBehavData-min(lp_periodBehavData); plot(trace+shift(1)); shift(2)=shift(1)+ceil(max(trace));
+trace=bp_periodBehavData*3-min(bp_periodBehavData); plot(trace+shift(2)); shift(3)=shift(2)+ceil(max(trace));
+trace=sdf-min(sdf); plot(trace+shift(3)); shift(4)=shift(3)+ceil(max(trace));
+plot([indx;indx],[indy+shift(4);indy+shift(4)+50],'color','k'); shift(1)=shift(1)+51;% plot rasters
+set(gca,'ytick',[0 80 150 300 450],'yticklabels',...
+    {'Raw whisking', 'Whisking set point', 'Whisking cycles', 'Spike density function', 'Rasters'});
+set(gca,'xtick',[0 50000 100000 150000 200000],'xticklabels',round([0 50000 100000 150000 200000]/60000,1));
+xlabel('Time (mn)')
+% set(gca,'xlim',);
+axis(gca, 'off'); 
 
 %% plot cross-correlation
-[acor,lag] = xcorr(sdf,bp_periodBehavData,2500);
+[acor,lag] = xcorr(sdf,bp_periodBehavData,100,'unbiased');
 figure
-plot(lag,acor)
+plot(lag,acor); xlabel('Lag (ms)')
+title({'Cross correlation';'Spike density function vs. Whisking cycle'})
 
-[acor,lag] = xcorr(sdf,lp_periodBehavData,2500);
+[acor,lag] = xcorr(sdf,lp_periodBehavData,1000);
 figure
-plot(lag,acor)
+plot(lag,acor); xlabel('Lag (ms)')
+title({'Cross correlation';'Spike density function vs. Set point'})
+
+
+[acor,lag] = xcorr(sdf,periodBehavData,2500);
+figure
+plot(lag,acor); xlabel('Lag (ms)')
+
+
+
+shuffle-subtracted correlogram
+shuffle "trials"
+coherence
 
 

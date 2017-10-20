@@ -8,21 +8,34 @@ numBatches = ceil(nframes / maxNumFramesPerBatch);
 thetas = zeros(1, nframes);
 nosem = zeros(2, nframes);
 
+% stride=2;
+
 for batchNum = 1: numBatches
-    
+    tic
     %%% read frames %%%
     range = [(batchNum - 1) * maxNumFramesPerBatch + 1, min(batchNum * maxNumFramesPerBatch, nframes)];
     data = zeros(whiskerRegion(4)-whiskerRegion(3)+1,whiskerRegion(2)-whiskerRegion(1)+1, diff(range) + 1);
-    for i = 1: diff(range) + 1
+    for i = 1 : diff(range) + 1
+        try 
         tmp = double(rgb2gray(readFrame(vid)));
+        catch ME
+            if strcmp(ME.identifier,'MATLAB:audiovideo:VideoReader:EndOfFile')
+                disp('No more frames available to read from file.')
+            end
+            continue
+        end
+%         tmp = imresize(tmp, scale);
         tmp = imrotate(tmp, angleRectify);
         data(:, :, i) = tmp(whiskerRegion(3):whiskerRegion(4),whiskerRegion(1): whiskerRegion(2));
         if mod(i, 100) == 0
-%             disp(['Done frames ', num2str(i), '/', num2str(nframes), ' - batch ', num2str(ibat)])
+            disp(['Done frames ', num2str(i), '/', num2str(nframes), ' - batch ', num2str(batchNum)])
         end
     end
+    if sum(sum(sum(data)))==0
+        continue
+    end
     data = WT_normalize(data);
-    
+    toc
     %%% get nose info %%%
     nosec = zeros(2, diff(range) + 1);
     datanose = data(noseRegion(3):noseRegion(4),noseRegion(1): noseRegion(2), :);
@@ -32,11 +45,11 @@ for batchNum = 1: numBatches
     sigma=3;
     for i = 1: diff(range) + 1
         tmp = datanose(:, :, i);
-        tmp = gaussfilt(tmp, sigma);
+        tmp = imgaussfilt(tmp, sigma);
         tmp = tmp > graythresh(tmp);
         tt = regionprops(tmp, 'Centroid');
         while length(tt)>1
-         tmp = gaussfilt(tmp, sigma);
+         tmp = imgaussfilt(double(tmp), sigma);
          tmp = tmp > graythresh(tmp);
          tt = regionprops(tmp, 'Centroid');
          sigma=sigma+1;
@@ -61,9 +74,9 @@ for batchNum = 1: numBatches
     mask = l == i;
     
     %%% preprocess %%%
-    ispara = 1;
-    dt1 = WT_anidenoise(data, ispara);
-    dt1 = 1 - WT_normalize(dt1);
+%     ispara = 1;
+%     dt1 = WT_anidenoise(data, ispara);
+    dt1 = 1 - WT_normalize(data);
     dt2 = WT_bg_remove(dt1, 5);
     datan = zeros(size(dt2));
     datan(6: end - 5, 6: end - 5, :) = dt2(6: end - 5, 6: end - 5, :);

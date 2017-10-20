@@ -48,10 +48,13 @@ while strcmp(isCropGood,'No')
     close all
 end
 
+clearvars -except vid angleRectify whiskerRegion noseRegion file_name path_name
+
+%get angle values
 [thetas,nosem]=GetWhiskerAngle(vid,angleRectify,whiskerRegion,noseRegion);
 
 %%% save: you can modify the path %%%
-cd('C:\Data\Ephys\Behav');
+cd(path_name);
 save([ file_name{1}(1:end-3) 'mat'], 'thetas', 'nosem');
 
 

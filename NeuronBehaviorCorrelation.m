@@ -47,16 +47,28 @@ load([dirName fileName]);
 
 channelNum=19;
 
+% original traces:
+fileName='100_CH19.continuous';
+channels=[18  19  20  23  26  28  30  31] -1;
+options.refCh=1;
+options.filter={[300 6000],'bandpass'};
+options.CAR=true;
+
+[or_traces,or_timestamps,or_info]=Load_OE_Traces(fileName,channels,options);
+
 %% get spike and TTL times (loads spikeData and TTLs variables)
 [fileName,dirName] = uigetfile({'*.mat','.mat Files';...
     '*.*','All Files' },'Get Spikes and TTL',cd);
 cd(dirName); 
-
-fileName=cell2mat(regexp(fileName,'.+(?=_)','match')); %'039v_0925_2Hz20ms_20mW_28Ch_nopp'; % '039v_0927_2Hz20ms_20mW_28Ch_nopp'; % 'SpVi12_133_2Hz2ms_10mW_nopp';
-spikeData=load([fileName '_Ch' num2str(channelNum) '.mat'],'waveForms','spikeTimes','unitsIdx','samplingRate','selectedUnits');
-load([fileName '_Ch' num2str(channelNum) '.mat'],'TTLs');
-% might be empty - then load _trials
-if ~isfield(TTLs,'TTLtimes')
+if contains(fileName,'.mat')
+    fileName=cell2mat(regexp(fileName,'.+(?=_)','match')); %'039v_0925_2Hz20ms_20mW_28Ch_nopp'; % '039v_0927_2Hz20ms_20mW_28Ch_nopp'; % 'SpVi12_133_2Hz2ms_10mW_nopp';
+    spikeData=load([fileName '_Ch' num2str(channelNum) '.mat'],'waveForms','spikeTimes','unitsIdx','samplingRate','selectedUnits');
+    load([fileName '_Ch' num2str(channelNum) '.mat'],'TTLs');
+elseif  contains(fileName,'.spikes')
+    resorted_spikeData=Load_OE_SpikesData(fileName);
+end
+% TTL might be empty - then load _trials
+if ~exist('TTLs','var') || ~isfield(TTLs,'TTLtimes')
     [fileName,dirName] = uigetfile({'*.mat','.mat Files';...
     '*.*','All Files' },'load trials file',cd);
     load(fullfile(dirName,fileName));
@@ -87,10 +99,13 @@ spikeTimes=double(spikeData.spikeTimes(spikeData.unitsIdx==clusterNum)); %figure
 spikeTimes=spikeTimes-(double(TTLs.TTLtimes(1))*double(spikeData.samplingRate)/double(TTLs.samplingRate));
 spikeTimes=spikeTimes(spikeTimes>0);
 
+rs_spikeTimes=double(resorted_spikeData.spikeTimes(resorted_spikeData.unitsIdx==2)); %figure; plot(spikeTimes)
+
 figure; hold on 
 plot(recordingTrace)
 for cluster=clusterNum
-    plot(spikeTimes,ones(size(spikeTimes,1),1)*-500,'r*')
+    plot(spikeTimes,ones(size(spikeTimes,1),1)*-500,'*')
+    plot(rs_spikeTimes,ones(size(rs_spikeTimes,1),1)*-300,'d')
 end
 
 foo=resample(periodBehavData,30,1); foo=foo(1:length(rawData(channelNum,:)));

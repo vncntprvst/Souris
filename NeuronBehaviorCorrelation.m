@@ -23,10 +23,24 @@ catch
     [fileName,dirName] = uigetfile({'*.mat','.mat Files';...
         '*.*','All Files' },'Recording Data',cd);
 end
-load([dirName fileName]);
+load(fullfile(dirName,fileName));
+allTraces=rawData;clearvars 'rawData';
 
-channelNum=[26 30 31];
-% 
+%% get information about sorted channels and clusters 
+try
+    fileName=dirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'_quality.csv'),...
+        {dirListing.name},'UniformOutput',false))).name;
+    sortInfo=readJRClustSortInfo(fileName);
+    channelNum=unique(sortInfo.center_site);
+    keepUnits=sortInfo.unit_id;
+    titularChannels=sortInfo.center_site;
+catch
+    %set values yourself
+    channelNum=[26 30 31];
+    keepUnits=[8 10 11 12 13 15];
+    titularChannels=[10 14 14 15 15 15];
+end
+ 
 % %% Load "original" traces (.continuous files from Open Ephys)
 % fileName='100_CH19.continuous';
 % channels=[18  19  20  23  26  28  30  31] -1;
@@ -45,8 +59,7 @@ catch
         '*.*','All Files' },'Get Spikes and TTL',cd);
     cd(dirName);
 end
-keepUnits=[8 10 11 12 13 15];
-titularChannels=[10 14 14 15 15 15];
+
 if contains (fileName,'.csv') % from JRClust
    allSpikeData=load(fileName);
    spikeData.samplingRate=samplingRate;
@@ -87,7 +100,7 @@ end
 
 %% Keep selected recording trace and spike times, set to initial TTL 
 %first, traces
-keepTraces=[10 14 15]; 
+keepTraces=1:16; %[10 14 15]; 
 recordingTrace=cell(length(keepTraces),1);
 for traceNum=1:length(keepTraces)
     recordingTrace{traceNum}=allTraces(keepTraces(traceNum),:); %select the trace to keep
@@ -104,22 +117,22 @@ for clusterNum=1:length(keepUnits)
 end
 % rs_spikeTimes=double(source_spikeData.spikeTimes(source_spikeData.unitsIdx==2)); %figure; plot(spikeTimes)
 
-figure('Color','white'); 
-for traceNum=1:length(keepTraces)
-    subplot(length(keepTraces),1,traceNum); hold on;
-    plot(recordingTrace{traceNum});
-    correspondingUnits=find(ismember(titularChannels,keepTraces(traceNum)));
-    for clusterNum=1:length(correspondingUnits)
-        plot(spikeTimes{correspondingUnits(clusterNum)},...
-            ones(size(spikeTimes{correspondingUnits(clusterNum)},1),1)*-200,'*');
-        %     plot(rs_spikeTimes,ones(size(rs_spikeTimes,1),1)*-300,'d')
-    end
-    midRec=round(length(recordingTrace{traceNum})/2);
-    set(gca,'ylim',[-500 500],'xlim',[midRec-samplingRate midRec+samplingRate]);
-end
+% figure('Color','white'); 
+% for traceNum=1:length(keepTraces)
+%     subplot(length(keepTraces),1,traceNum); hold on;
+%     plot(recordingTrace{traceNum});
+%     correspondingUnits=find(ismember(titularChannels,keepTraces(traceNum)));
+%     for clusterNum=1:length(correspondingUnits)
+%         plot(spikeTimes{correspondingUnits(clusterNum)},...
+%             ones(size(spikeTimes{correspondingUnits(clusterNum)},1),1)*-200,'*');
+%         %     plot(rs_spikeTimes,ones(size(rs_spikeTimes,1),1)*-300,'d')
+%     end
+%     midRec=round(length(recordingTrace{traceNum})/2);
+%     set(gca,'ylim',[-500 500],'xlim',[midRec-samplingRate midRec+samplingRate]);
+% end
 
-foo=resample(periodBehavData,30,1); foo=foo(1:length(allTraces(channelNum,:)));
-plot(foo*1000-200)
+% foo=resample(periodBehavData,30,1); foo=foo(1:length(allTraces(channelNum,:)));
+% plot(foo*1000-200)
 
 % params.Fs=30000;params.fpass=[0 25];params.tapers=[2 3];params.pad=1;params.err=[2 0.05];params.trialave=0;
 % [C,phi,S12,S1,S2,f]=coherencyc(foo',double(allTraces(channelNum,:))',params);
@@ -132,8 +145,8 @@ plot(foo*1000-200)
 
 %% bin spike counts in 1ms bins
 % with Chronux' binning function
-foo=binspikes(spikeTimes/double(spikeData.samplingRate),Fs);
-foo=[zeros(round(spikeTimes(1)/double(spikeData.samplingRate)*Fs)-1,1);foo]; %need to padd with zeroes
+% foo=binspikes(spikeTimes/double(spikeData.samplingRate),Fs);
+% foo=[zeros(round(spikeTimes(1)/double(spikeData.samplingRate)*Fs)-1,1);foo]; %need to padd with zeroes
 % with home-made function. Same result, but takes care of the padding
 binSize=1;
 binSpikeTimes=cell(length(keepUnits),1);
@@ -141,19 +154,19 @@ for clusterNum=1:length(keepUnits)
     binSpikeTimes{clusterNum,1}=DownSampleToMilliseconds(spikeTimes{clusterNum},binSize,spikeData.samplingRate);
 end
 
-figure; hold on
-% plot(dsrecordingTrace)
-plot(find(binSpikeTimes),ones(length(find(binSpikeTimes)),1)*-250,'r*')
-plot(find(foo),ones(length(find(foo)),1)*-200,'g*')
+% figure; hold on
+% % plot(dsrecordingTrace)
+% plot(find(binSpikeTimes),ones(length(find(binSpikeTimes)),1)*-250,'r*')
+% plot(find(foo),ones(length(find(foo)),1)*-200,'g*')
 
 %% compute sdfs
 SDFs=cell(length(keepUnits),1);
 for clusterNum=1:length(keepUnits)
     SDFs{clusterNum}=GaussConv(binSpikeTimes{clusterNum},5)*1000;
 end
-figure; hold on
-plot(SDFs{1})
-plot(find(binSpikeTimes{1}),ones(length(find(binSpikeTimes{1})),1)*-10,'r*')
+% figure; hold on
+% plot(SDFs{1})
+% plot(find(binSpikeTimes{1}),ones(length(find(binSpikeTimes{1})),1)*-10,'r*')
 
 %% compute rasters
 [indy, indx]=deal(cell(length(keepUnits),1));
@@ -183,8 +196,8 @@ if contains(fileName,'.csv') %not yet converted to mat file
      %fill missing / NaNs values (if any)
     thetas = fillmissing(thetas,'spline'); %linear %spline %movmedian
 
-    [b,a] = butter(3,40/250,'low');
-    foo = filtfilt(b,a,thetas);
+%     [b,a] = butter(3,40/250,'low');
+%     foo = filtfilt(b,a,thetas);
     
 elseif contains(fileName,'.avi') %video file to extract whisker angle
     thetas=ExtractMultiWhiskerAngle_FFTonContours(fullfile(dirName,fileName));
@@ -193,7 +206,7 @@ else
     load([dirName fileName]);
 end
 %% get video sync data 
-videoFrameTimes=readVideoTTLData;
+videoFrameTimes=readVideoTTLData(dirListing);
 
 %% create array with angle values and time points
 periodBehavData=[thetas(videoFrameTimes.TTLFrames(1):size(videoFrameTimes.frameTime_ms,1)),... %Trace
@@ -209,17 +222,17 @@ periodBehavData=interp1(periodBehavData(:,2),periodBehavData(:,1),periodBehavDat
 
 %% plot behavior data and find a period with whisking bouts
 % no need to keep periods with no whisking
-figure; plot(periodBehavData); % select data point and export cursor info
-whiskingPeriod=1:cursor_info.Position(1); %in ms
+% figure; plot(periodBehavData); % select data point and export cursor info
+% whiskingPeriod=1:cursor_info.Position(1); %in ms
 
 %% filter periodic behavior traces into low-pass and bandpassed versions
 LP_periodBehavData=FilterTrace(periodBehavData,0.3,1000,'low'); %set-point
-figure; hold on
-plot(periodBehavData); plot(LP_periodBehavData,'LineWidth',2)
+% figure; hold on
+% plot(periodBehavData); plot(LP_periodBehavData,'LineWidth',2)
 
 BP_periodBehavData=FilterTrace(periodBehavData,[0.3 30],1000,'bandpass'); %whisking
-figure; hold on
-plot(periodBehavData-mean(periodBehavData)); plot(BP_periodBehavData,'LineWidth',1)
+% figure; hold on
+% plot(periodBehavData-mean(periodBehavData)); plot(BP_periodBehavData,'LineWidth',1)
 
 %% cut down behavior and spike traces to same length
 shortestDuration=min(cellfun(@(x) length(x), SDFs));
@@ -256,45 +269,53 @@ instantFreq = medfreq(sgPower,sgFreq);
 %%%%%%%%%%%%%%%%%%%%%%%
 %% plot traces together
 %%%%%%%%%%%%%%%%%%%%%%%
-displayUnits=1:length(keepUnits); %default: 1:length(keepUnits) [1 4 5]
-% plot 4 seconds around a designated time point
-minFreqIdx=sgTime(instantFreq<rms(instantFreq)); % low oscillation frequency
-whiskingAmp=abs(BP_periodBehavData-LP_periodBehavData);% whisking amplitude
-thAmpIdx=minFreqIdx(whiskingAmp(minFreqIdx)==max(whiskingAmp(minFreqIdx))); 
-dispWin=[thAmpIdx-2000 thAmpIdx+1999]; timeAxis=dispWin(1):dispWin(2);
-cmap=colormap(lines);
-figure('Color','white'); hold on;
-% axes('Position',[0 1-(1/(4)*(4)) 1 1/(4)]); 
-% subplot(2,1,2); hold on; axis(gca,'off');
-for clusterNum=1:length(displayUnits) %:-1:1
-    % subplot('Position',[0 1-(1/(4)*(clusterNum+3)) 1 1/(4)]);
-    winIndx=indx{displayUnits(clusterNum)}...
-        (indx{displayUnits(clusterNum)}>=dispWin(1) & indx{displayUnits(clusterNum)}<=dispWin(end))-timeAxis(1);
-    winIndy=indy{displayUnits(clusterNum)}...
-        (indx{displayUnits(clusterNum)}>=dispWin(1) & indx{displayUnits(clusterNum)}<=dispWin(end));
-    plot([winIndx;winIndx],[winIndy+clusterNum-1;winIndy+clusterNum],...
-        'color',cmap(clusterNum,:),'LineStyle','-','LineWidth',1.8); % plot rasters% plot rasters
-    plot(BP_periodBehavData(timeAxis)/max(abs(BP_periodBehavData(timeAxis)))+...
-        clusterNum+0.5,'color','k','LineWidth',0.8);
-    plot(whiskingPhase(timeAxis)/max(abs(whiskingPhase(timeAxis)))+...
-        clusterNum+0.5,'color','k','LineWidth',0.8);
-end
-% plot(diff(BP_periodBehavData(timeAxis))/max(abs(diff(BP_periodBehavData(timeAxis))))+length(keepUnits)+3,'color','k','LineWidth',1.8);axis(gca, 'off');
-% axis(gca, 'off');
-set(gca,'xlim',[1 length(timeAxis)]);
-% set(gca,'ytick',[0 80 150 300 450],'yticklabels',...
-%     {'Raw whisking', 'Whisking set point', 'Whisking cycles', 'Spike density function', 'Rasters'});
-% set(gca,'xtick',[0 50000 100000 150000 200000],'xticklabels',round([0 50000 100000 150000 200000]/60000,1));
-xlabel('Time (ms)')
-% set(gca,'xlim',);
+% displayUnits=1:length(keepUnits); %default: 1:length(keepUnits) [1 4 5]
+% % plot 4 seconds around a designated time point
+% minFreqIdx=sgTime(instantFreq<rms(instantFreq)); % low oscillation frequency
+% whiskingAmp=abs(BP_periodBehavData-LP_periodBehavData);% whisking amplitude
+% thAmpIdx=minFreqIdx(whiskingAmp(minFreqIdx)==max(whiskingAmp(minFreqIdx))); 
+% dispWin=[thAmpIdx-2000 thAmpIdx+1999]; timeAxis=dispWin(1):dispWin(2);
+% cmap=colormap(lines);
+% figure('Color','white'); hold on;
+% % axes('Position',[0 1-(1/(4)*(4)) 1 1/(4)]); 
+% % subplot(2,1,2); hold on; axis(gca,'off');
+% for clusterNum=1:length(displayUnits) %:-1:1
+%     % subplot('Position',[0 1-(1/(4)*(clusterNum+3)) 1 1/(4)]);
+%     winIndx=indx{displayUnits(clusterNum)}...
+%         (indx{displayUnits(clusterNum)}>=dispWin(1) & indx{displayUnits(clusterNum)}<=dispWin(end))-timeAxis(1);
+%     winIndy=indy{displayUnits(clusterNum)}...
+%         (indx{displayUnits(clusterNum)}>=dispWin(1) & indx{displayUnits(clusterNum)}<=dispWin(end));
+%     plot([winIndx;winIndx],[winIndy+clusterNum-1;winIndy+clusterNum],...
+%         'color',cmap(clusterNum,:),'LineStyle','-','LineWidth',1.8); % plot rasters% plot rasters
+%     plot(BP_periodBehavData(timeAxis)/max(abs(BP_periodBehavData(timeAxis)))+...
+%         clusterNum+0.5,'color','k','LineWidth',0.8);
+%     plot(whiskingPhase(timeAxis)/max(abs(whiskingPhase(timeAxis)))+...
+%         clusterNum+0.5,'color','k','LineWidth',0.8);
+% end
+% % plot(diff(BP_periodBehavData(timeAxis))/max(abs(diff(BP_periodBehavData(timeAxis))))+length(keepUnits)+3,'color','k','LineWidth',1.8);axis(gca, 'off');
+% % axis(gca, 'off');
+% set(gca,'xlim',[1 length(timeAxis)]);
+% % set(gca,'ytick',[0 80 150 300 450],'yticklabels',...
+% %     {'Raw whisking', 'Whisking set point', 'Whisking cycles', 'Spike density function', 'Rasters'});
+% % set(gca,'xtick',[0 50000 100000 150000 200000],'xticklabels',round([0 50000 100000 150000 200000]/60000,1));
+% xlabel('Time (ms)')
+% % set(gca,'xlim',);
 
+%%%%%%%%%%%%%%%%%%%%%%%%%
 %% plot cross-correlation
+%%%%%%%%%%%%%%%%%%%%%%%%%
+
+figure('position',[602   537   560   420]); hold on
 for clusterNum=1:length(displayUnits)
     [acor,lag] = xcorr(SDFs{displayUnits(clusterNum)},BP_periodBehavData,500,'coeff');
-    figure('position',[602   537   560   420]);
-    plot(lag,acor,'color','k','LineWidth',2); xlabel('Lag (ms)');set(gca,'ylim',[-0.5 0.5])
-    title({['Cross correlation for vIRt unit ' num2str(keepUnits(displayUnits(clusterNum)))];'Spike density function vs. Whisking angle'})
+    %     figure('position',[602   537   560   420]);
+    plot(lag,acor,'LineWidth',2); %xlabel('Lag (ms)');set(gca,'ylim',[-0.5 0.5])
 end
+legend();
+xlabel('Lag (ms)');set(gca,'ylim',[-0.5 0.5])
+title({['Cross correlation for vIRt unit ' num2str(keepUnits(displayUnits(clusterNum)))];...
+    'Spike density function vs. Whisking angle'})
+
 for clusterNum=1:length(displayUnits)
     [acor,lag] = xcorr(SDFs{displayUnits(clusterNum)},LP_periodBehavData,1000,'coeff');
     figure('position',[602   537   560   420]);

@@ -1,4 +1,4 @@
-%% Correlation between bursts/spike rate and periodical behaviors (whisking, breathing)
+%% Correlation between bursts/spike rate and periodic behaviors (whisking, breathing)
 
 % This script will need data from multiple source files:
 % - recording trace (...raw.mat)
@@ -17,14 +17,14 @@ samplingRate=30000;
 
 %% get recording traces (loads allTraces) (sampling rate usually at 30kHz)
 try
-    fileName=dirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'raw.mat'),...
+    fileName=dirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'traces.mat'),...
         {dirListing.name},'UniformOutput',false))).name;
 catch
     [fileName,dirName] = uigetfile({'*.mat','.mat Files';...
         '*.*','All Files' },'Recording Data',cd);
 end
-load([dirName fileName]);
-
+load(fullfile(dirName,fileName));
+allTraces=rawData;
 channelNum=[26 30 31];
 % 
 % %% Load "original" traces (.continuous files from Open Ephys)
@@ -45,8 +45,8 @@ catch
         '*.*','All Files' },'Get Spikes and TTL',cd);
     cd(dirName);
 end
-keepUnits=[8 10 11 12 13 15];
-titularChannels=[10 14 14 15 15 15];
+keepUnits=[1 2 3]; %[8 10 11 12 13 15];
+titularChannels=[10 10 10]; %[10 14 14 15 15 15];
 if contains (fileName,'.csv') % from JRClust
    allSpikeData=load(fileName);
    spikeData.samplingRate=samplingRate;
@@ -87,7 +87,7 @@ end
 
 %% Keep selected recording trace and spike times, set to initial TTL 
 %first, traces
-keepTraces=[10 14 15]; 
+keepTraces=10; %14; %[10 14 15]; 
 recordingTrace=cell(length(keepTraces),1);
 for traceNum=1:length(keepTraces)
     recordingTrace{traceNum}=allTraces(keepTraces(traceNum),:); %select the trace to keep
@@ -111,15 +111,13 @@ for traceNum=1:length(keepTraces)
     correspondingUnits=find(ismember(titularChannels,keepTraces(traceNum)));
     for clusterNum=1:length(correspondingUnits)
         plot(spikeTimes{correspondingUnits(clusterNum)},...
-            ones(size(spikeTimes{correspondingUnits(clusterNum)},1),1)*-200,'*');
+            ones(size(spikeTimes{correspondingUnits(clusterNum)},1),1)*-300,'*');
         %     plot(rs_spikeTimes,ones(size(rs_spikeTimes,1),1)*-300,'d')
     end
     midRec=round(length(recordingTrace{traceNum})/2);
     set(gca,'ylim',[-500 500],'xlim',[midRec-samplingRate midRec+samplingRate]);
 end
 
-foo=resample(periodBehavData,30,1); foo=foo(1:length(allTraces(channelNum,:)));
-plot(foo*1000-200)
 
 % params.Fs=30000;params.fpass=[0 25];params.tapers=[2 3];params.pad=1;params.err=[2 0.05];params.trialave=0;
 % [C,phi,S12,S1,S2,f]=coherencyc(foo',double(allTraces(channelNum,:))',params);
@@ -178,6 +176,7 @@ end
 if contains(fileName,'.csv') %not yet converted to mat file
     % import data
     thetas=ImportCSVasVector(fullfile(dirName,fileName));
+    thetas=thetas*180/pi; %convert to degrees.
     % smooth data to remove outliers - also takes care of missing data points
     thetas=smoothdata(thetas,'rloess',9);
      %fill missing / NaNs values (if any)
@@ -193,7 +192,7 @@ else
     load([dirName fileName]);
 end
 %% get video sync data 
-videoFrameTimes=readVideoTTLData;
+videoFrameTimes=ReadVideoFrameTimes;
 
 %% create array with angle values and time points
 periodBehavData=[thetas(videoFrameTimes.TTLFrames(1):size(videoFrameTimes.frameTime_ms,1)),... %Trace
@@ -221,11 +220,15 @@ BP_periodBehavData=FilterTrace(periodBehavData,[0.3 30],1000,'bandpass'); %whisk
 figure; hold on
 plot(periodBehavData-mean(periodBehavData)); plot(BP_periodBehavData,'LineWidth',1)
 
+HP_periodBehavData=FilterTrace(periodBehavData,0.3,1000,'high')'; %whisking
+plot(HP_periodBehavData,'LineWidth',1)
+
 %% cut down behavior and spike traces to same length
 shortestDuration=min(cellfun(@(x) length(x), SDFs));
 SDFs=cellfun(@(x) x(1:shortestDuration), SDFs,'UniformOutput',false);
 LP_periodBehavData=LP_periodBehavData(1:shortestDuration);
 BP_periodBehavData=BP_periodBehavData(1:shortestDuration);
+HP_periodBehavData=HP_periodBehavData(1:shortestDuration);
 periodBehavData=periodBehavData(1:shortestDuration);
 
 if exist('whiskingPeriod','var')
@@ -256,7 +259,7 @@ instantFreq = medfreq(sgPower,sgFreq);
 %%%%%%%%%%%%%%%%%%%%%%%
 %% plot traces together
 %%%%%%%%%%%%%%%%%%%%%%%
-displayUnits=1:length(keepUnits); %default: 1:length(keepUnits) [1 4 5]
+displayUnits=1; %4; %1:length(keepUnits); %default: 1:length(keepUnits) [1 4 5]
 % plot 4 seconds around a designated time point
 minFreqIdx=sgTime(instantFreq<rms(instantFreq)); % low oscillation frequency
 whiskingAmp=abs(BP_periodBehavData-LP_periodBehavData);% whisking amplitude
@@ -377,4 +380,91 @@ end
 
 
 % for phase 
+
+
+%% R01 figure
+traceNum=1; %3;
+vIRtTrace=recordingTrace{traceNum};
+midRec=round(length(vIRtTrace)/2)/30000;
+vibrissaAngle=resample(HP_periodBehavData,30,1); %foo=foo(1:length(recordingTrace{traceNum}));
+
+figure('Color','white');
+subplot(2,1,1); hold on
+timeAxis=(1:length(vIRtTrace))/30000;
+plot(timeAxis,vIRtTrace,'color','k','LineWidth',0.8);
+correspondingUnits=find(ismember(titularChannels,keepTraces(traceNum)));
+for clusterNum=1:length(correspondingUnits)
+    plot(spikeTimes{correspondingUnits(clusterNum)}/30000,...
+        ones(size(spikeTimes{correspondingUnits(clusterNum)},1),1)*-1500+clusterNum*100,'d');
+end
+
+set(gca,'ylim',[-1500 1000],'xlim',[661 665],'Box','off','Color','white','FontSize',10,...
+    'FontName','Helvetica','TickDir','out');
+xlabel('Time (s)'); ylabel('Firing rate (Hz)');
+
+subplot(2,1,2); hold on
+timeAxis=(1:length(vibrissaAngle))/30000;
+plot(timeAxis,vibrissaAngle,'color','k','LineWidth',0.8);
+for clusterNum=1:length(correspondingUnits)
+    plot(spikeTimes{correspondingUnits(clusterNum)}/30000,...
+        ones(size(spikeTimes{correspondingUnits(clusterNum)},1),1)+clusterNum,'d');
+end
+set(gca,'xlim',[661 665],'ylim',[-15 15],'Box','off','Color','white','FontSize',10,...
+    'FontName','Helvetica','TickDir','out');% axis 'tight'
+xlabel('Time (s)');  ylabel('Angle (\circ)');
+
+% cross correlation
+bestUnit=2; %4;
+[acor,lag] = xcorr(SDFs{bestUnit},HP_periodBehavData,500,'coeff');
+figure('position',[602   537   560   420]);
+plot(lag,acor,'color','k','LineWidth',2); xlabel('Lag (ms)');set(gca,'ylim',[-0.5 0.5])
+title({['Cross correlation for vIRt unit ' num2str(keepUnits(bestUnit))];'Spike density function vs. Whisking angle'})
+
+%% polar plot
+%
+% unitSDF=SDFs{bestUnit};
+% unitSDFExcerpt=unitSDF(int32([midRec-100:midRec+100]*1000));
+% get atda
+unitSpikes=binSpikeTimes{bestUnit};
+vibrissaAngle=BP_periodBehavData; 
+unitSpikes=unitSpikes(1:length(vibrissaAngle));
+numSegments=round(length(vibrissaAngle)/60000);
+
+for pplotNum=1:numSegments-1
+    %excerpt
+    timeIndex=(pplotNum-1)*60+1;
+    timeWindowIdx=int32(linspace(timeIndex*1000,(timeIndex+60)*1000-1,60*1000)); %int32([midRec-300:midRec+100]*1000);
+    vibrissaAngleExcerpt=vibrissaAngle(timeWindowIdx);
+    unitSpikesExcerpt=unitSpikes(timeWindowIdx);
+    
+    % coordConversion=90; %adjust depending on camera position
+    % vibrissaAngleExcerpt=vibrissaAngleExcerpt+coordConversion; % *180/pi;
+    % vibrissaAngleExcerpt=vibrissaAngleExcerpt/180*pi; %convert back to radians
+    
+    % Hilbert transform NEEDS TO BE ZERO CENTRED !!!
+    HTvibrissaAngle=hilbert(vibrissaAngleExcerpt);
+    % figure; plot(whiskingPhase);
+    whiskingPhase=angle(HTvibrissaAngle);
+    
+    spikeOnWPhase=whiskingPhase(logical(unitSpikesExcerpt));
+    figure; polarhistogram(spikeOnWPhase,72,'Displaystyle','stairs',...
+        'Normalization','count')
+end
+% [whiskingPhase,sortIdx]=sort(whiskingPhase);
+% unitSDFExcerpt=unitSDFExcerpt(sortIdx);
+% 
+% whiskingPhase=whiskingPhase(unitSDFExcerpt>5);
+% unitSDFExcerpt=unitSDFExcerpt(unitSDFExcerpt>5);
+
+% figure;polarplot(whiskingPhase,unitSDFExcerpt)
+
+
+% timeAxis=(1:length(unitSpikes))*30000;
+% figure; hold on 
+% plot(timeAxis,vibrissaAngle)
+% plot(find(unitSpikes)*30000,zeros(length(find(unitSpikes)),1),'d')
+% plot(timeAxis,whiskingPhase)
+
+
+
 

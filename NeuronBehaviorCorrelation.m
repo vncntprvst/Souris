@@ -220,7 +220,6 @@ else
     load([dirName fileName]);
 end
 %% get video sync data 
-
 videoFrameTimes=ReadVideoFrameTimes;
 % videoFrameTimes=readVideoTTLData(dirListing);
 

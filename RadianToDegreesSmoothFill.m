@@ -1,10 +1,10 @@
 function thetas=RadianToDegreesSmoothFill(thetas)
 % thetas=(multiWhiskerTrackingData(:,7));
 % convert to degrees
-thetas=thetas*180/pi;
+thetas=thetas*180/pi; %equivalent to rad2deg
 
 %center to zero median
-thetas=thetas-nanmedian(thetas);
+% thetas=thetas-nanmedian(thetas);
 
 % find outliers
 outliers=abs(thetas)>30*mad(abs(thetas));

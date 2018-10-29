@@ -2,7 +2,7 @@ function [recordingTraces,spikeRasters_ms,rasterXInd_ms,rasterYInd_ms,samplingRa
     SDFs_ms,spikeTimes,waveForms,unitID,preferredElectrode,keepUnits,...
     BP_periodBehavData_ms,HP_periodBehavData_ms,LP_periodBehavData_ms,...
     HTBP_periodBehavData_ms, peakWhisking_ms,periodBehavData_ms,...
-    whiskingPhase_ms,instantFreq_ms,sgFreq,sgTime,sgPower] = NeuronBehaviorCorrelation_GatherData
+    whiskingPhase_ms,instantFreq_ms,sgFreq,sgTime,sgPower,recName] = NeuronBehaviorCorrelation_GatherData
 
 % Gather data for analysis of correlation between bursts/spike rate and periodic behaviors (whisking, breathing)
 % Simplified version
@@ -184,7 +184,7 @@ spikes.times=double(spikes.times);
 [unitFreq,uniqueUnitIDs]=hist(spikes.unitID,unique(spikes.unitID));
 [unitFreq,freqIdx]=sort(unitFreq','descend');
 unitFreq=unitFreq./sum(unitFreq)*100; uniqueUnitIDs=uniqueUnitIDs(freqIdx);
-bestUnitsIdx=find(unitFreq>2);
+bestUnitsIdx=find(unitFreq>0.8);
 keepUnits=uniqueUnitIDs(bestUnitsIdx); keepUnits=sort(keepUnits(keepUnits~=0));
 if isfield(spikes,'preferredElectrode')
     titularChannels = unique(spikes.preferredElectrode(ismember(spikes.unitID,keepUnits)));

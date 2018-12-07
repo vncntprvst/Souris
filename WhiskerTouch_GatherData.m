@@ -57,32 +57,13 @@ whiskerStimFiles=whiskerStimFiles(cellfun(@(flnm) contains(flnm,{'_ROIWhiskerCon
 cd(spikeSortingFiles.folder);
 spikes=LoadSpikeData(spikeSortingFiles.name); %,traces);
 
-% load vSync file
-vsyncfID=fopen(vSyncFiles.name)
+%% load frame times
+vsyncFID=fopen(vSyncFiles.name, 'r');
+frameTimes = fread(vsyncFID,[2,Inf],'double');
+fclose(vsyncFID);
 
-
-
-%% Load TTLs (are they needed?)
-TTLDir=TTLFiles(TTLFileNum).folder;
-TTLFileName= TTLFiles(TTLFileNum).name;%[regexp(recName,'\S+?(?=_export)','match','once') '_TTLs.dat'];
-fid = fopen(fullfile(TTLDir,TTLFileName), 'r');
-TTLTimes = fread(fid,[2,Inf],'int32');
-fclose(fid);
-TTLs.times=TTLTimes(1,:);
-TTLs.samplingRate=1000;
-
-%% Read frame times
-videoFrameDir=videoFrameTimeFiles(vFrameFileNum).folder;
-videoFrameFileName= videoFrameTimeFiles(vFrameFileNum).name;
-if contains(videoFrameFileName,'.dat')
-    fid = fopen(fullfile(videoFrameDir,videoFrameFileName), 'r');
-    vFrameTimes = fread(fid,[2,Inf],'double');
-    fclose(fid);
-else
-    vFrameTimes=ReadVideoFrameTimes;
-    % videoFrameTimes=readVideoTTLData(dirListing);
-end
-
+%% load whisker stim times
+whiskerStim_FrameIdx=GetFrame_WhiskerTouch(whiskerStimFiles.name,whiskerStimFiles.folder);
 
 %% Add voltage scaling factor and sampling rate
 % spikes.waveforms=double(spikes.waveforms.*bitResolution);
@@ -93,32 +74,11 @@ else
 end
 
 %% Filter traces if needed
-if filterTraces == true
-    allTraces=FilterTrace(allTraces,samplingRate);
-end
+% if filterTraces == true
+%     allTraces=FilterTrace(allTraces,samplingRate);
+% end
 
 %% Sync ephys and behavior (video) 
-% convert video frame times to native recording frame rate (typically 30kHz) if needed
-% first remove recording start clock time
-vidTimes=vFrameTimes(1,vFrameTimes(2,:)<0)-double(startTime); %when using Paul's OE Basler module
-% % also reset spike times if needed
-if spikes.times(end) > size(allTraces,2)
-    spikes.times=spikes.times-startTime;
-end
-    TTLs.times=TTLs.times-double(startTime/(samplingRate/1000));
-% then sync
-if vidTimes(1)>=0
-    allTraces=allTraces(:,vidTimes(1):vidTimes(end));
-    spikeReIndex=spikes.times>=vidTimes(1) & spikes.times<=vidTimes(end);
-    spikes.unitID=spikes.unitID(spikeReIndex);
-    spikes.preferredElectrode=spikes.preferredElectrode(spikeReIndex);
-    spikes.waveforms=spikes.waveforms(spikeReIndex,:);
-    spikes.times=spikes.times(spikeReIndex)-vidTimes(1);
-    vidTimes=vidTimes-vidTimes(1);
-else % need to cut behavior trace
-    %     videoReIndex=...
-    %     whiskerTrackingData=...
-end
 
 %% Find best units
 spikes.unitID=double(spikes.unitID);
@@ -143,50 +103,6 @@ unitID=spikes.unitID(keepUnitsIdx);
 preferredElectrode=spikes.preferredElectrode(keepUnitsIdx);
 waveForms=spikes.waveforms(keepUnitsIdx,:);
 spikeTimes=spikes.times(keepUnitsIdx);
-% keepUnits=unique(unitID);
-% recordingTrace=cell(length(keepTraces),1);
-% for traceNum=1:length(keepTraces)
-%     recordingTrace{traceNum}=allTraces(keepTraces(traceNum),:); %select the trace to keep
-%     recordingTrace{traceNum}=recordingTrace{traceNum}(TTLs.times(1)*double(samplingRate)/...
-%         double(TTLs.samplingRate):end); % cut out trace that occurs before first TTL
-% end
-% 
-% % same for spikes from selected units
-% spikeTimes=cell(length(keepUnits),1);
-% for clusterNum=1:length(keepUnits)
-%     spikeTimes{clusterNum}=double(spikes.times(spikes.unitID==keepUnits(clusterNum))); %figure; plot(spikeTimes)
-%     spikeTimes{clusterNum}=spikeTimes{clusterNum}-(double(TTLs.times(1))*double(samplingRate)/double(TTLs.samplingRate));
-%     spikeTimes{clusterNum}=spikeTimes{clusterNum}(spikeTimes{clusterNum}>0);
-% end
-% % rs_spikeTimes=double(source_spikes.times(source_spikes.unitID==2)); %figure; plot(spikeTimes)
-
-% figure('Color','white');
-% for traceNum=1:length(keepTraces)
-% %     subplot(length(keepTraces),1,traceNum); 
-%     figure('Color','white'); hold on;
-%     plot(recordingTraces(traceNum,:));
-%     correspondingUnits=unique(unitID(ismember(preferredElectrode,keepTraces(traceNum))));
-%     for clusterNum=1:numel(correspondingUnits)
-%         plot(spikeTimes(unitID==correspondingUnits(clusterNum)),...
-%             ones(numel(spikeTimes(unitID==correspondingUnits(clusterNum))),1)*-300,'*');
-%         %     plot(rs_spikeTimes,ones(size(rs_spikeTimes,1),1)*-300,'d')
-%     end
-%     midRec=round(size(recordingTraces,2)/2);
-%     set(gca,'ylim',[-500 500],'xlim',[midRec-samplingRate midRec+samplingRate]);
-% end
-
-% foo=resample(periodBehavData,30,1); foo=foo(1:length(allTraces(channelNum,:)));
-% plot(foo*1000-200)
-
-
-% params.Fs=30000;params.fpass=[0 25];params.tapers=[2 3];params.pad=1;params.err=[2 0.05];params.trialave=0;
-% [C,phi,S12,S1,S2,f]=coherencyc(foo',double(allTraces(channelNum,:))',params);
-% figure; subplot(311); plot(f,C);subplot(312); plot(f,10*log10(S1));subplot(313); plot(f,10*log10(S2))
-
-%% Downsample trace to 1ms (pointless, as it will loose the spikes)
-% Fs=1000;
-% % foo=resample(double(recordingTrace),Fs,double(samplingRate));
-% dsrecordingTrace=decimate(double(recordingTrace),double(samplingRate)/Fs,'fir');
 
 %% Bin spike counts in 1ms bins
 % with Chronux' binning function
@@ -223,88 +139,6 @@ for clusterNum=1:length(keepUnits)
         ind2sub(size(spikeRasters_ms(clusterNum,:)),find(spikeRasters_ms(clusterNum,:))); %find row and column coordinates of spikes
 end
 % rasters=[indx indy;indx indy+1];
-
-%% Create array with angle values and time points
-periodBehavData=[whiskerTrackingData,vidTimes'];
-% periodBehavData=[whiskerTrackingData(videoFrameTimes.TTLFrames(1):...
-%                   size(videoFrameTimes.frameTime_ms,1)),... %Trace
-%     videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(1):end)-...
-%     videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(1))+1]; % Time points
-% figure; hold on
-% plot(periodBehavData(:,2),periodBehavData(:,1))
-
-%resample to 1ms precision
-periodBehavData_ms=periodBehavData;
-periodBehavData_ms(:,2)=periodBehavData_ms(:,2)/samplingRate*1000;
-% [periodBehavData(:,1),periodBehavData(:,2)] = resample(periodBehavData(:,1),periodBehavData(:,2),'pchip');
-periodBehavData_ms=interp1(periodBehavData_ms(:,2),periodBehavData_ms(:,1),...
-    periodBehavData_ms(1,2):periodBehavData_ms(end,2));
-% figure; plot(periodBehavData);
-
-%% Plot behavior data and find a period with whisking bouts
-% no need to keep periods with no whisking
-% figure; plot(periodBehavData); % select data point and export cursor info
-% whiskingPeriod=1:cursor_info.Position(1); %in ms
-peakWhisking_ms=diff(cummax(abs(diff(periodBehavData_ms))));
-% peakWhiskingIdx=find(peakWhisking_ms==max(peakWhisking_ms));
-% whiskingPeriod=peakWhiskingIdx-5000:peakWhiskingIdx+4999; %in ms
-
-%% Filter periodic behavior traces into low-pass and bandpassed versions
-LP_periodBehavData_ms=FilterTrace(periodBehavData_ms,1000,0.3,'low'); %set-point
-% figure; hold on
-% plot(periodBehavData_ms); plot(LP_periodBehavData_ms,'LineWidth',2)
-
-BP_periodBehavData_ms=FilterTrace(periodBehavData_ms,1000,[0.3 20],'bandpass'); %whisking
-% figure; hold on %plot(foo) % plot(periodBehavData_ms)
-% plot(periodBehavData_ms-mean(periodBehavData_ms)); plot(BP_periodBehavData_ms,'LineWidth',1)
-
-HP_periodBehavData_ms=FilterTrace(periodBehavData_ms,1000,0.3,'high')'; %whisking
-% plot(HP_periodBehavData_ms,'LineWidth',1)
-
-% make sure behavior and spike traces have same length
-if size(SDFs_ms,2)~=numel(periodBehavData_ms)
-    % check what 
-end
-
-if exist('whiskingPeriod','var')
-    %     sdf=sdf(whiskingPeriod);
-    %     LP_periodBehavData=LP_periodBehavData(whiskingPeriod);
-    %     BP_periodBehavData=BP_periodBehavData(whiskingPeriod);
-end
-
-% figure; hold on
-% plot(SDFs{1}); plot(BP_periodBehavData/min(BP_periodBehavData)*...
-%     max(SDFs{1}) + max(SDFs{1}))
-
-%% Hilbert transform
-% Hilbert transform NEEDS ANGLE TO BE ZERO CENTERED !!!
-% periodicSignal=smoothdata(BP_periodBehavData_ms,'robustfit');
-% -mean(BP_periodBehavData_ms);
-% baseSignal=FilterTrace(periodicSignal,1000,0.3,'low');
-% baseSignal=LP_periodBehavData_ms-mean(LP_periodBehavData_ms);
-% figure; hold on; plot(periodicSignal);
-% periodicSignal(abs(periodicSignal)<2*std(abs(periodicSignal)))=0;plot(baseSignal);
-HTBP_periodBehavData_ms=hilbert(BP_periodBehavData_ms);
-% figure; plot(imag(HTBP_periodBehavData_ms));
-% foo=abs(imag(HTBP_periodBehavData_ms))<mad((imag(HTBP_periodBehavData_ms)));
-% bla=imag(HTBP_periodBehavData_ms); bla(foo)=0; plot(bla)
-% plot(imag(HTBP_periodBehavData_ms));
-whiskingPhase_ms=angle(HTBP_periodBehavData_ms);
-% whiskingPhase_ms(foo)=0;
-% plot(whiskingPhase_ms)
-% figure; hold on
-% plot(SDFs); plot(whiskingPhase*10 + max(SDFs))
-
-%% Find instantaneous frequency
-Nfft = 1024;
-% [Pxx,f] = pwelch(BP_periodBehavData,gausswin(Nfft),Nfft/2,Nfft,1000);
-% figure; plot(f,Pxx); ylabel('PSD'); xlabel('Frequency (Hz)'); grid on;
-[~,sgFreq,sgTime,sgPower] = spectrogram(BP_periodBehavData_ms,gausswin(Nfft),Nfft/2,Nfft,1);
-instantFreq_ms = medfreq(sgPower,sgFreq);
-% figure; plot(sgTime,round(instantFreq*1000),'linewidth',2)
-
-%%%%%%%%%%%%%%%%%%%%%%%
-
 
 
 

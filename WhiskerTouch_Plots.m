@@ -5,10 +5,6 @@
     SDFs_ms,spikeTimes,waveForms,unitID,preferredElectrode,keepUnits,...
     stimType,stimTimes,recName] = WhiskerTouch_GatherData;
 
-
-
-
-
 keepTraces=unique(preferredElectrode(ismember(unitID,keepUnits)));
 % Find whisking periods
 peakWhiskingIdx=find(peakWhisking_ms==max(peakWhisking_ms));

@@ -1,6 +1,6 @@
 function [spikeRasters_ms,rasterXInd_ms,rasterYInd_ms,samplingRate,...
     SDFs_ms,spikeTimes,waveForms,unitID,preferredElectrode,keepUnits,...
-    templates,templateIdx,stimType,stimTimes_ms,videoFile] = WhiskerTouch_GatherData
+    templates,templateIdx,stimType,stimTimes_ms,videoFile] = WhiskerPole_GatherData
 
 % [recordingTraces,spikeRasters_ms,rasterXInd_ms,rasterYInd_ms,samplingRate,...
 %     SDFs_ms,spikeTimes,waveForms,unitID,preferredElectrode,keepUnits,...
@@ -82,7 +82,7 @@ stimTimes_ms=cell(size(whiskerStim_FrameIdx,2),1);
 for ROInum= 1:size(whiskerStim_FrameIdx,2)
     % remove periods that are too short
     stimPeriods=bwconncomp(whiskerStim_FrameIdx(:,ROInum));
-    stimFrameIdx=cellfun(@(x) x(1), {stimPeriods.PixelIdxList{1,cellfun(@numel,stimPeriods.PixelIdxList)>10}});
+    stimFrameIdx=cellfun(@(x) x(1), {stimPeriods.PixelIdxList{1,cellfun(@numel,stimPeriods.PixelIdxList)>1}});
     % then get corresponding frame time
     stimTimes_ms{ROInum}=frameTimes(1,stimFrameIdx)/samplingRate*1000;
 end

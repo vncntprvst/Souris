@@ -1,9 +1,9 @@
-% WhiskerTouch_Plots
+% WhiskerPole_Plots
 
 %% First, get data
 [spikeRasters_ms,rasterXInd_ms,rasterYInd_ms,samplingRate,...
     SDFs_ms,spikeTimes,waveForms,unitID,preferredElectrode,keepUnits,...
-    templates,templateIdx,stimType,stimTimes_ms] = WhiskerTouch_GatherData;
+    templates,templateIdx,stimType,stimTimes_ms] = WhiskerPole_GatherData;
 
 %% plot units with stim
 figure('Position',[1050 120 750 790]); hold on 

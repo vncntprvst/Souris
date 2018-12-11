@@ -45,23 +45,25 @@ for unitNum=1:size(SDFs_ms,1)
 end
 
 %% plot psth showing all units
-keepUnits(9)=[];
-figure('Position',[1050 120 750 790]); colormap bone;
-% meanUnits=cellfun(@(x) conv_raster(x),{PSTH.startTrial},'UniformOutput',false);
-% meanUnits=cell2mat(meanUnits');
-imagesc(zscore(PSTH(keepUnits,:),[])); %
-% imagesc(meanUnits);
-xlabel('Time (ms)');
-ylabel('Units','FontWeight','bold','FontSize',12);
-% draw alignment bar
-currylim=get(gca,'YLim');
-patch([repmat(preAlignWindow-2,1,2) repmat(preAlignWindow+2,1,2)], ...
-    [[0 currylim(2)] fliplr([0 currylim(2)])], ...
-    [0 0 0 0],[1 0 0],'EdgeColor','none','FaceAlpha',0.5);
+for unitNum=1:size(SDFs_ms,1)
+    %keepUnits(2)=[];
+    figure('Position',[1050 120 750 790]); colormap bone;
+    % meanUnits=cellfun(@(x) conv_raster(x),{PSTH.startTrial},'UniformOutput',false);
+    % meanUnits=cell2mat(meanUnits');
+    imagesc(zscore(PSTH(keepUnits,:),[])); %
+    % imagesc(meanUnits);
+    xlabel('Time (ms)');
+    ylabel('Units','FontWeight','bold','FontSize',12);
+    % draw alignment bar
+    currylim=get(gca,'YLim');
+    patch([repmat(preAlignWindow-2,1,2) repmat(preAlignWindow+2,1,2)], ...
+        [[0 currylim(2)] fliplr([0 currylim(2)])], ...
+        [0 0 0 0],[1 0 0],'EdgeColor','none','FaceAlpha',0.5);
 
-set(gca,'XTick',0:100:sum(preAlignWindow+postAlignWindow));
-set(gca,'XTickLabel',-preAlignWindow:100:postAlignWindow);
+    set(gca,'XTick',0:100:sum(preAlignWindow+postAlignWindow));
+    set(gca,'XTickLabel',-preAlignWindow:100:postAlignWindow);
 
-title('whisker touch responses');
-hcb = colorbar('southoutside');
-hcb.Label.String = 'z-scored firing rate';
+    title('whisker touch responses');
+    hcb = colorbar('southoutside');
+    hcb.Label.String = 'z-scored firing rate';
+end

@@ -5,7 +5,8 @@
     SDFs_ms,spikeTimes,waveForms,unitID,preferredElectrode,keepUnits,...
     BP_periodBehavData_ms,HP_periodBehavData_ms,LP_periodBehavData_ms,...
     HTBP_periodBehavData_ms, peakWhisking_ms,periodBehavData_ms,...
-    whiskingPhase_ms,instantFreq_ms,sgFreq,sgTime,sgPower,recName] = NeuronBehaviorCorrelation_GatherData
+    whiskingPhase_ms,instantFreq_ms,sgFreq,sgTime,sgPower,recName] =...
+    NeuronBehaviorCorrelation_GatherData;
 
 keepTraces=unique(preferredElectrode(ismember(unitID,keepUnits)));
 % Find whisking periods
@@ -20,8 +21,6 @@ longestWhiskingPeriodIdx=whiskingPeriodIdxInfo.PixelIdxList{...
     whiskingPeriodDuration==max(whiskingPeriodDuration)};
 
 % Definitions
-colormapSeed=lines;
-cmap=[colormapSeed(1:7,:);(colormapSeed+flipud(colormap(copper)))/2;autumn];
 
 %% mock up units to test code
 % % mock up protraction unit
@@ -41,7 +40,10 @@ cmap=[colormapSeed(1:7,:);(colormapSeed+flipud(colormap(copper)))/2;autumn];
 % timeIndex=(bestWhiskingPeriod-1)*60+1;
 % whiskingPeriod=int32(linspace(timeIndex*1000,(timeIndex+60)*1000-1,60*1000));
 whiskingPeriod=whiskingPeriodIdx; %based on defined whisking periods
-figure('name',recName)
+phaseTuningSummaryFig=figure('position',[969    49   944   948],'name',recName);
+colormapSeed=lines;
+cmap=[colormapSeed(1:7,:);(colormapSeed+flipud(colormap(copper)))/2;autumn];
+
 for unitNum=1:size(spikeRasters_ms,1) %find(keepUnits==15) 
     unitSpikes=spikeRasters_ms(unitNum,:);
     unitSpikesExcerpt=unitSpikes(whiskingPeriod);
@@ -79,6 +81,8 @@ for unitNum=1:size(spikeRasters_ms,1) %find(keepUnits==15)
         phaseTuning=[];
     end
 end
+savefig(phaseTuningSummaryFig,[recName '_phaseTuningSummary.fig'])
+saveas(phaseTuningSummaryFig,[recName '_phaseTuningSummary.png'])
 % unitsOfInterestIdx=[5,1,6,10];unitsOfInterest=keepUnits(unitsOfInterestIdx);
 
 %% Is WR bursting reliable? - Plot spike times with whisking angle
@@ -87,11 +91,12 @@ timeVector=1:numel(periodBehavData_ms); timeVector(~whiskingPeriodIdx)=NaN;
 % plot(timeVector,periodBehavData_ms-median(periodBehavData_ms))
 oscillationPattern=cos(whiskingPhase_ms);
 % cross correlation
-figure('position',[602   537   560   420],'name',recName);
+SpikeWAngleCorrFigure=figure('position',[969    49   944   948],'name',recName);
 for unitNum=1:size(SDFs_ms,1) %find(keepUnits==15); %bestUnit=2; %4;
     unitSDF=SDFs_ms(unitNum,:); % unitSpikes=spikeRasters_ms(unitNum,:);
     [acor,lag] = xcorr(unitSDF(whiskingPeriodIdx),...
         oscillationPattern(whiskingPeriodIdx),150,'coeff');
+    figure(SpikeWAngleCorrFigure)
     subplot(ceil(size(spikeRasters_ms,1)/4),4,unitNum);
     ccph=plot(lag,acor,'color','k','LineWidth',2);set(gca,'ylim',[-0.4 0.4]); %xlabel('Lag (ms)')
 %     title({['Cross correlation for vIRt unit ' num2str(keepUnits(unitNum))];...
@@ -121,9 +126,13 @@ for unitNum=1:size(SDFs_ms,1) %find(keepUnits==15); %bestUnit=2; %4;
            tuningLabel= num2str(phaseTuning);
         end
         title([recName ' unit ' num2str(keepUnits(unitNum))  ' Tuning ' tuningLabel],'interpreter','latex')
+        savefig(gcf,[recName '_BurstUnit' keepUnits(unitNum) '.fig'])
+        saveas(gcf,[recName '_BurstUnit' keepUnits(unitNum) '.png'])
+        close(gcf);
     end
 end
-
+savefig(SpikeWAngleCorrFigure,[recName '_SpikeWAngleCorr.fig'])
+saveas(SpikeWAngleCorrFigure,[recName '_SpikeWAngleCorr.png'])
 
 % %% Plot traces together
 % traceId=mode(preferredElectrode(unitID==unitsOfInterest(1)));

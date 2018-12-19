@@ -18,7 +18,7 @@ function [recordingTraces,spikeRasters_ms,rasterXInd_ms,rasterYInd_ms,samplingRa
 
 %% Locate data
 spikeSortingFiles = cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
-    {'*.result.hdf5','*_jrc.mat','*.csv','*_spikesResorted.mat'},'UniformOutput', false);
+    {'*.result.hdf5','*_rez.mat','*_jrc.mat','*.csv','*_spikesResorted.mat'},'UniformOutput', false);
 spikeSortingFiles=vertcat(spikeSortingFiles{~cellfun('isempty',spikeSortingFiles)});
 % do not include those files:
 spikeSortingFiles=spikeSortingFiles(~cellfun(@(flnm) contains(flnm,{'DeepCut','Whisker'}),...
@@ -26,12 +26,12 @@ spikeSortingFiles=spikeSortingFiles(~cellfun(@(flnm) contains(flnm,{'DeepCut','W
 sessionDir=cd;
 
 dataFiles = cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
-    {'*.dat','*raw.kwd','*RAW*Ch*.nex','*.ns*'},'UniformOutput', false);
+    {'*.dat','*.bin','*raw.kwd','*RAW*Ch*.nex','*.ns*'},'UniformOutput', false);
 dataFiles=vertcat(dataFiles{~cellfun('isempty',dataFiles)});
 % keep those files
 TTLFiles=dataFiles(cellfun(@(flnm) contains(flnm,{'_TTLs'}),...
-    {dataFiles.name}));
-dataFiles=dataFiles(cellfun(@(flnm) contains(flnm,{'_export'}),...
+    {dataFiles.name})); %not used here. Used for Phototag plots
+dataFiles=dataFiles(cellfun(@(flnm) contains(flnm,{'_export';'_traces'}),...
     {dataFiles.name}));
 
 % try
@@ -55,14 +55,28 @@ videoFrameTimeFiles=videoFrameTimeFiles(cellfun(@(flnm) contains(flnm,{'_VideoFr
     {videoFrameTimeFiles.name}));
 
 % decide which file to use
-recName='vIRt22_1016_5100_50ms1Hz10mW';
+% recName='vIRt22_1016_5100_50ms1Hz10mW';
 spikeFileNum=1; dataFileNum=1; TTLFileNum=1; wTrackNumFile=[1,2]; vFrameFileNum=1;
 
 %also get some info about the recording if possible
 % e.g., load rec_info from the spike file:
 load(spikeSortingFiles(spikeFileNum).name,'rec_info')
-numElectrodes=numel(rec_info.exportedChan); %32 %numel(unique(spikes.preferredElectrode));
-
+if ~exist('rec_info','var')
+    load([spikeSortingFiles(spikeFileNum).name(1:end-7) 'recInfo']);
+else
+    recInfo=rec_info; clear rec_info; 
+end
+if isfield(recInfo,'exportedChan')
+    numElectrodes=numel(recInfo.exportedChan); 
+elseif isfield(recInfo,'numRecChan')
+    numElectrodes=numel(recInfo.numRecChan); %32 %numel(unique(spikes.preferredElectrode));
+else
+    %Assuming 32 %Could also check numel(unique(spikes.preferredElectrode));
+    numElectrodes=32;
+end
+if numElectrodes==35
+    numElectrodes=32; %AUX channels removed
+end
 %% Load spikes and recording traces
 recDir=spikeSortingFiles(spikeFileNum).folder;
 recName=spikeSortingFiles(spikeFileNum).name;
@@ -72,11 +86,33 @@ dataFileIdx=cellfun(@(datF) contains(datF,regexp(recName,'\S+?(?=\.\w+\.\w+$)','
 dataFileName=dataFiles(dataFileIdx).name;
 dataFileDir=dataFiles(dataFileIdx).folder;
 
+% eval(['jrc ''load-bin'' ' bla ' int16'])
+% trWav_raw = load_bin_(dataFileName, 'int16',[32 14 recDuration]);
+% vcFile=fullfile(dataFileDir,dataFileName);
+% fid=fopen(dataFileName, 'r');
+% fclose(bla)
+%         fid = fopen(vcFile, 'r');
+% %         if header>0, fseek(fid, header, 'bof'); end
+%         if isempty(dimm) % read all
+%             S_file = dir(vcFile);
+%             if numel(S_file)~=1, return; end % there must be one file
+%             nData = floor((S_file(1).bytes - header) / bytesPerSample_(dataType));
+%             dimm = [nData, 1]; %return column
+%         end
+% 
+% fread_(foo,[32 14 187354],'int16');
+% fclose(foo);
+ 
 traces = memmapfile(fullfile(dataFileDir,dataFileName),'Format','int16');
 allTraces=double(traces.Data); 
-recDuration=int32(length(allTraces)/numElectrodes);
-allTraces=reshape(allTraces,[numElectrodes recDuration]);
-filterTraces=true;
+recDuration=int64(length(allTraces)/numElectrodes);
+try
+    allTraces=reshape(allTraces,[numElectrodes recDuration]);
+%     allTraces=reshape(trWav_raw,[numElectrodes size(trWav_raw,2)*size(trWav_raw,3)]);
+catch
+    allTraces=reshape(allTraces',[recDuration numElectrodes]);
+end
+filterTraces=false;
 
 spikes=LoadSpikeData(recName,traces);
 
@@ -133,8 +169,8 @@ end
 
 %% Recording start time (mostly for OE)
 % Processor: Rhythm FPGA Id: 100 subProcessor: 0 start time: 27306000@30000Hz
-if exist('rec_info','var') & isfield(rec_info,'recordingStartTime')
-    startTime=double(rec_info.recordingStartTime); % 27306000; % !!!
+if exist('recInfo','var') & isfield(recInfo,'recordingStartTime')
+    startTime=double(recInfo.recordingStartTime); % 27306000; % !!!
 else
     startTime=0;
     %well, make sure time indices are properly aligned
@@ -169,7 +205,10 @@ if vidTimes(1)>=0
     spikeReIndex=spikes.times>=vidTimes(1) & spikes.times<=vidTimes(end);
     spikes.unitID=spikes.unitID(spikeReIndex);
     spikes.preferredElectrode=spikes.preferredElectrode(spikeReIndex);
-    spikes.waveforms=spikes.waveforms(spikeReIndex,:);
+    try
+        spikes.waveforms=spikes.waveforms(spikeReIndex,:);
+    catch
+    end
     spikes.times=spikes.times(spikeReIndex)-vidTimes(1);
     vidTimes=vidTimes-vidTimes(1);
 else % need to cut behavior trace
@@ -198,7 +237,11 @@ recordingTraces=allTraces(keepTraces,:); %select the trace to keep
 keepUnitsIdx=ismember(spikes.preferredElectrode,keepTraces);
 unitID=spikes.unitID(keepUnitsIdx);
 preferredElectrode=spikes.preferredElectrode(keepUnitsIdx);
-waveForms=spikes.waveforms(keepUnitsIdx,:);
+try
+    waveForms=spikes.waveforms(keepUnitsIdx,:);
+catch
+    waveForms=[];
+end
 spikeTimes=spikes.times(keepUnitsIdx);
 % keepUnits=unique(unitID);
 % recordingTrace=cell(length(keepTraces),1);
@@ -282,6 +325,9 @@ end
 % rasters=[indx indy;indx indy+1];
 
 %% Create array with angle values and time points
+if numel(whiskerTrackingData)~=numel(vidTimes)
+    whiskerTrackingData=whiskerTrackingData(1:numel(vidTimes)); %but check why that is
+end
 periodBehavData=[whiskerTrackingData,vidTimes'];
 % periodBehavData=[whiskerTrackingData(videoFrameTimes.TTLFrames(1):...
 %                   size(videoFrameTimes.frameTime_ms,1)),... %Trace

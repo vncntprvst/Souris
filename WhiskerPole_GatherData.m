@@ -74,7 +74,8 @@ fclose(vsyncFID);
 %% load whisker stim times
 stimulationTypes={'ManStim','Pole','Texture'};
 stimType=stimulationTypes{cellfun(@(stimT) contains(whiskerStimFiles.name,stimT),...
-    stimulationTypes)};
+        stimulationTypes)};
+    
 whiskerStim_FrameIdx=GetFrame_WhiskerTouch(whiskerStimFiles.name,whiskerStimFiles.folder);
 
 %% get stimulus time

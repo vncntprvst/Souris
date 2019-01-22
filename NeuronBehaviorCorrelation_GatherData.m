@@ -9,9 +9,9 @@ function [recordingTraces,spikeRasters_ms,rasterXInd_ms,rasterYInd_ms,samplingRa
 
 %% Place files to analyze in current folder
 % Required file(s):
-%     with spike times
-%     with whisker position/angle
-%     with ephys and video recording times to sync the two
+%     spike times
+%     whisker position/angle
+%     ephys and video recording times to sync the two
 % Optional files:
 %     ephys traces
 %     video recording
@@ -21,7 +21,7 @@ spikeSortingFiles = cellfun(@(fileFormat) dir([cd filesep '**' filesep fileForma
     {'*.result.hdf5','*_rez.mat','*_jrc.mat','*.csv','*_spikesResorted.mat'},'UniformOutput', false);
 spikeSortingFiles=vertcat(spikeSortingFiles{~cellfun('isempty',spikeSortingFiles)});
 % do not include those files:
-spikeSortingFiles=spikeSortingFiles(~cellfun(@(flnm) contains(flnm,{'DeepCut','Whisker'}),...
+spikeSortingFiles=spikeSortingFiles(~cellfun(@(flnm) contains(flnm,{'DeepCut','Whisker','trial'}),...
     {spikeSortingFiles.name}));
 sessionDir=cd;
 
@@ -29,7 +29,7 @@ dataFiles = cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
     {'*.dat','*.bin','*raw.kwd','*RAW*Ch*.nex','*.ns*'},'UniformOutput', false);
 dataFiles=vertcat(dataFiles{~cellfun('isempty',dataFiles)});
 % keep those files
-TTLFiles=dataFiles(cellfun(@(flnm) contains(flnm,{'_TTLs'}),...
+TTLFiles=dataFiles(cellfun(@(flnm) contains(flnm,{'_trialTTLs'}),...
     {dataFiles.name})); %not used here. Used for Phototag plots
 dataFiles=dataFiles(cellfun(@(flnm) contains(flnm,{'_export';'_traces'}),...
     {dataFiles.name}));
@@ -47,22 +47,26 @@ whiskerTrackingFiles=vertcat(whiskerTrackingFiles{~cellfun('isempty',whiskerTrac
 whiskerTrackingFiles=whiskerTrackingFiles(cellfun(@(flnm) contains(flnm,{'DeepCut','Whisker'}),...
     {whiskerTrackingFiles.name}));
 
-%% Get video sync data
+%% Get video sync data 
 videoFrameTimeFiles=cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
     {'*.dat'},'UniformOutput', false);
 videoFrameTimeFiles=vertcat(videoFrameTimeFiles{~cellfun('isempty',videoFrameTimeFiles)});
-videoFrameTimeFiles=videoFrameTimeFiles(cellfun(@(flnm) contains(flnm,{'_VideoFrameTimes'}),...
+videoFrameTimeFiles=videoFrameTimeFiles(cellfun(@(flnm) contains(flnm,{'_VideoFrameTimes','vSync'}),...
     {videoFrameTimeFiles.name}));
 
 % decide which file to use
 % recName='vIRt22_1016_5100_50ms1Hz10mW';
 spikeFileNum=1; dataFileNum=1; TTLFileNum=1; wTrackNumFile=[1,2]; vFrameFileNum=1;
 
+%% Load spikes and recording traces
+recDir=spikeSortingFiles(spikeFileNum).folder;
+recName=spikeSortingFiles(spikeFileNum).name;
+cd(recDir)
 %also get some info about the recording if possible
 % e.g., load rec_info from the spike file:
 load(spikeSortingFiles(spikeFileNum).name,'rec_info')
 if ~exist('rec_info','var')
-    load([spikeSortingFiles(spikeFileNum).name(1:end-7) 'recInfo']);
+    load([dataFiles(spikeFileNum).name(1:end-10) 'recInfo']);
 else
     recInfo=rec_info; clear rec_info; 
 end
@@ -77,10 +81,7 @@ end
 if numElectrodes==35
     numElectrodes=32; %AUX channels removed
 end
-%% Load spikes and recording traces
-recDir=spikeSortingFiles(spikeFileNum).folder;
-recName=spikeSortingFiles(spikeFileNum).name;
-cd(recDir)
+
 dataFileIdx=cellfun(@(datF) contains(datF,regexp(recName,'\S+?(?=\.\w+\.\w+$)','match','once')) ,...
     {dataFiles.name});
 dataFileName=dataFiles(dataFileIdx).name;

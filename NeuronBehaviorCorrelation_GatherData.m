@@ -56,7 +56,15 @@ videoFrameTimeFiles=videoFrameTimeFiles(cellfun(@(flnm) contains(flnm,{'_VideoFr
 
 % decide which file to use
 % recName='vIRt22_1016_5100_50ms1Hz10mW';
-spikeFileNum=1; dataFileNum=1; TTLFileNum=1; wTrackNumFile=[1,2]; vFrameFileNum=1;
+spikeFileNum=1; dataFileNum=1; TTLFileNum=1; wTrackNumFile=1; %[1,2]; vFrameFileNum=1;
+if sum(cellfun(@(flnm) contains(flnm,'vSync'),{videoFrameTimeFiles.name}))
+    videoFrameTimeFiles=videoFrameTimeFiles(cellfun(@(flnm) contains(flnm,'vSync'),...
+    {videoFrameTimeFiles.name}));
+else
+    videoFrameTimeFiles=videoFrameTimeFiles(cellfun(@(flnm) contains(flnm,'_VideoFrameTimes'),...
+    {videoFrameTimeFiles.name}));
+
+end
 
 %% Load spikes and recording traces
 recDir=spikeSortingFiles(spikeFileNum).folder;
@@ -127,45 +135,57 @@ TTLs.times=TTLTimes(1,:);
 TTLs.samplingRate=1000;
 
 %% Read frame times
-videoFrameDir=videoFrameTimeFiles(vFrameFileNum).folder;
-videoFrameFileName= videoFrameTimeFiles(vFrameFileNum).name;
-if contains(videoFrameFileName,'.dat')
+videoFrameDir=videoFrameTimeFiles(1).folder;
+videoFrameFileName= videoFrameTimeFiles(1).name;
+if contains(videoFrameFileName,'vSyncTTLs.dat')
+    fid = fopen(fullfile(videoFrameDir,videoFrameFileName), 'r');
+    vFrameTimes = fread(fid,[2,Inf],'int32');
+    fclose(fid);
+elseif contains(videoFrameFileName,'VideoFrameTimes.dat')
     fid = fopen(fullfile(videoFrameDir,videoFrameFileName), 'r');
     vFrameTimes = fread(fid,[2,Inf],'double');
     fclose(fid);
-else
+else % csv file from Bonsai
     vFrameTimes=ReadVideoFrameTimes;
     % videoFrameTimes=readVideoTTLData(dirListing);
 end
 
-%% Import whisker tracking data (aka "thetas") 
+%% Import whisker tracking data (aka "thetas")
 % variable frame rate typically ~500Hz
-if numel(wTrackNumFile)==1
-    whiskerTrackDir=whiskerTrackingFiles(wTrackNumFile).folder;
-    whiskerTrackFileName= whiskerTrackingFiles(wTrackNumFile).name;
-    if contains(whiskerTrackFileName,'.csv') % could be npy
-        whiskerTrackingData = ImportDLCWhiskerTrackingCSV(fullfile(...
-            whiskerTrackDir,whiskerTrackFileName));
+whiskerTrackDir=whiskerTrackingFiles(1).folder;
+whiskerTrackFileName= whiskerTrackingFiles(1).name;
+if contains(whiskerTrackFileName,'.csv') % e.g. WhiskerAngle.csv
+    if contains(whiskerTrackFileName,'.npy')
+    elseif contains(whiskerTrackFileName,'.csv')
+        if contains(whiskerTrackFileName,'DeepCut') || contains(whiskerTrackFileName,'DLC')
+            whiskerTrackingData = ImportDLCWhiskerTrackingCSV(fullfile(...
+                whiskerTrackDir,whiskerTrackFileName));
+        else %assuming from Bonsai
+%             export from Bonsai has either one column (old type): Orientation
+%               or three columns:  Centroid.X Centroid.Y Orientation
+            if numel(wTrackNumFile)==1
+                whiskerTrackingData=ImportCSVasVector(fullfile(whiskerTrackDir,whiskerTrackFileName));
+                if size(whiskerTrackingData,2)>1
+                    whiskerTrackingData=whiskerTrackingData(:,1:2);
+                end
+            else              
+                whiskerTrackDir=whiskerTrackingFiles(wTrackNumFile(2)).folder;
+                whiskerTrackFileName= whiskerTrackingFiles(wTrackNumFile(2)).name;
+                multiWhiskerTrackingData=ImportCSVasVector(fullfile(whiskerTrackDir,whiskerTrackFileName));
+            % Multiwhiskerfor up to 5 main whiskers (NaN if less)
+                whiskerTrackingData=multiWhiskerTrackingData(:,7); %posterior most whisker
+            end
+            whiskerTrackingData=WhiskerAngleSmoothFill(whiskerTrackingData(:,1),whiskerTrackingData(:,2));
+            %     figure; hold on; plot(whiskerTrackingData)
+            %adjust base angle if needed, e.g. 45degrees at full retraction:
+%             whiskerTrackingData=whiskerTrackingData-min(whiskerTrackingData)+45;
+        end
     elseif contains(whiskerTrackFileName,'.avi') %video file to extract whisker angle
         whiskerTrackingData=ExtractMultiWhiskerAngle_FFTonContours(fullfile(dirName,fileName));
         whiskerTrackingData=smoothdata(whiskerTrackingData,'rloess',20);
     else
         load([dirName fileName]);
     end
-else % contains(fileName,'.csv') % e.g. WhiskerAngle.csv
-    whiskerTrackDir=whiskerTrackingFiles(wTrackNumFile(1)).folder;
-    whiskerTrackFileName= whiskerTrackingFiles(wTrackNumFile(1)).name;
-    mainWhiskerTrackingData=ImportCSVasVector(fullfile(whiskerTrackDir,whiskerTrackFileName));
-    whiskerTrackDir=whiskerTrackingFiles(wTrackNumFile(2)).folder;
-    whiskerTrackFileName= whiskerTrackingFiles(wTrackNumFile(2)).name;
-    multiWhiskerTrackingData=ImportCSVasVector(fullfile(whiskerTrackDir,whiskerTrackFileName));
-    % Multiwhisker export from Bonsai has three columns: Orientation Centroid.X Centroid.Y
-    % for up to 5 main whiskers (NaN if less)
-    whiskerTrackingData=multiWhiskerTrackingData(:,7); %posterior most whisker
-    whiskerTrackingData=RadianToDegreesSmoothFill(whiskerTrackingData); 
-%     figure; hold on; plot(whiskerTrackingData)
-    %adjust base angle if needed, e.g. 45degrees at full retraction:
-    whiskerTrackingData=whiskerTrackingData-min(whiskerTrackingData)+45;
 end
 
 %% Recording start time (mostly for OE)
@@ -195,20 +215,25 @@ end
 % convert video frame times to native recording frame rate (typically 30kHz) if needed
 % first remove recording start clock time
 vidTimes=vFrameTimes(1,vFrameTimes(2,:)<0)-double(startTime); %when using Paul's OE Basler module
+
 % % also reset spike times if needed
 if spikes.times(end) > size(allTraces,2)
     spikes.times=spikes.times-startTime;
 end
-    TTLs.times=TTLs.times-double(startTime/(samplingRate/1000));
+TTLs.times=TTLs.times-double(startTime/(samplingRate/1000));
 % then sync
 if vidTimes(1)>=0
     allTraces=allTraces(:,vidTimes(1):vidTimes(end));
     spikeReIndex=spikes.times>=vidTimes(1) & spikes.times<=vidTimes(end);
     spikes.unitID=spikes.unitID(spikeReIndex);
+    try
     spikes.preferredElectrode=spikes.preferredElectrode(spikeReIndex);
+    catch %might referenced by cluster or electrodes
+    end
     try
         spikes.waveforms=spikes.waveforms(spikeReIndex,:);
     catch
+        %?
     end
     spikes.times=spikes.times(spikeReIndex)-vidTimes(1);
     vidTimes=vidTimes-vidTimes(1);
@@ -227,7 +252,11 @@ unitFreq=unitFreq./sum(unitFreq)*100; uniqueUnitIDs=uniqueUnitIDs(freqIdx);
 bestUnitsIdx=find(unitFreq>0.8);
 keepUnits=uniqueUnitIDs(bestUnitsIdx); keepUnits=sort(keepUnits(keepUnits~=0));
 if isfield(spikes,'preferredElectrode')
-    titularChannels = unique(spikes.preferredElectrode(ismember(spikes.unitID,keepUnits)));
+    try
+        titularChannels = unique(spikes.preferredElectrode(ismember(spikes.unitID,keepUnits)));
+    catch
+        titularChannels =find(~cellfun('isempty',spikes.preferredElectrode));
+    end
 end
 % keepUnits=[1 2 3];
 % titularChannels=[10 10 10];
@@ -235,6 +264,7 @@ keepTraces=titularChannels; %14; %[10 14 15];% keepTraces=1:16; %[10 14 15];
 
 %% Keep selected recording trace and spike times,
 recordingTraces=allTraces(keepTraces,:); %select the trace to keep
+try
 keepUnitsIdx=ismember(spikes.preferredElectrode,keepTraces);
 unitID=spikes.unitID(keepUnitsIdx);
 preferredElectrode=spikes.preferredElectrode(keepUnitsIdx);
@@ -244,6 +274,12 @@ catch
     waveForms=[];
 end
 spikeTimes=spikes.times(keepUnitsIdx);
+catch
+    unitID=spikes.unitID;
+    spikeTimes=spikes.times;
+    waveForms=spikes.waveforms;
+    preferredElectrode=spikes.preferredElectrode;
+end
 % keepUnits=unique(unitID);
 % recordingTrace=cell(length(keepTraces),1);
 % for traceNum=1:length(keepTraces)
@@ -329,7 +365,7 @@ end
 if numel(whiskerTrackingData)~=numel(vidTimes)
     whiskerTrackingData=whiskerTrackingData(1:numel(vidTimes)); %but check why that is
 end
-periodBehavData=[whiskerTrackingData,vidTimes'];
+periodBehavData=[whiskerTrackingData',vidTimes'];
 % periodBehavData=[whiskerTrackingData(videoFrameTimes.TTLFrames(1):...
 %                   size(videoFrameTimes.frameTime_ms,1)),... %Trace
 %     videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(1):end)-...

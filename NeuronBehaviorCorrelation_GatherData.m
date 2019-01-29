@@ -2,7 +2,7 @@ function [recordingTraces,spikeRasters_ms,rasterXInd_ms,rasterYInd_ms,samplingRa
     SDFs_ms,spikeTimes,waveForms,unitID,preferredElectrode,keepUnits,...
     BP_periodBehavData_ms,HP_periodBehavData_ms,LP_periodBehavData_ms,...
     HTBP_periodBehavData_ms, peakWhisking_ms,periodBehavData_ms,...
-    whiskingPhase_ms,instantFreq_ms,sgFreq,sgTime,sgPower,recName] = NeuronBehaviorCorrelation_GatherData
+    whiskingPhase_ms,instantFreq_ms,sgFreq,sgTime,sgPower,recName,vidTimes_ms] = NeuronBehaviorCorrelation_GatherData
 
 % Gather data for analysis of correlation between bursts/spike rate and periodic behaviors (whisking, breathing)
 % Simplified version
@@ -249,7 +249,7 @@ spikes.times=double(spikes.times);
 [unitFreq,uniqueUnitIDs]=hist(spikes.unitID,unique(spikes.unitID));
 [unitFreq,freqIdx]=sort(unitFreq','descend');
 unitFreq=unitFreq./sum(unitFreq)*100; uniqueUnitIDs=uniqueUnitIDs(freqIdx);
-bestUnitsIdx=find(unitFreq>0.8);
+bestUnitsIdx=find(unitFreq>0.1);
 keepUnits=uniqueUnitIDs(bestUnitsIdx); keepUnits=sort(keepUnits(keepUnits~=0));
 if isfield(spikes,'preferredElectrode')
     try
@@ -365,7 +365,7 @@ end
 if numel(whiskerTrackingData)~=numel(vidTimes)
     whiskerTrackingData=whiskerTrackingData(1:numel(vidTimes)); %but check why that is
 end
-periodBehavData=[whiskerTrackingData',vidTimes'];
+% periodBehavData=[whiskerTrackingData',vidTimes'];
 % periodBehavData=[whiskerTrackingData(videoFrameTimes.TTLFrames(1):...
 %                   size(videoFrameTimes.frameTime_ms,1)),... %Trace
 %     videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(1):end)-...
@@ -374,12 +374,11 @@ periodBehavData=[whiskerTrackingData',vidTimes'];
 % plot(periodBehavData(:,2),periodBehavData(:,1))
 
 %resample to 1ms precision
-periodBehavData_ms=periodBehavData;
-periodBehavData_ms(:,2)=periodBehavData_ms(:,2)/samplingRate*1000;
+vidTimes_ms=vidTimes/samplingRate*1000;
 % [periodBehavData(:,1),periodBehavData(:,2)] = resample(periodBehavData(:,1),periodBehavData(:,2),'pchip');
-periodBehavData_ms=interp1(periodBehavData_ms(:,2),periodBehavData_ms(:,1),...
-    periodBehavData_ms(1,2):periodBehavData_ms(end,2));
-% figure; plot(periodBehavData);
+periodBehavData_ms=interp1(vidTimes_ms,whiskerTrackingData,...
+    vidTimes_ms(1):vidTimes_ms(end));
+% figure; plot(periodBehavData_ms);
 
 %% Plot behavior data and find a period with whisking bouts
 % no need to keep periods with no whisking

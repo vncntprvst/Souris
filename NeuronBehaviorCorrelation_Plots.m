@@ -23,7 +23,7 @@ longestWhiskingPeriodIdx=whiskingPeriodIdxInfo.PixelIdxList{...
 % Definitions
 
 %% mock up units to test code
-% % mock up protraction unit
+% mock up protraction unit
 % fakeUnitSpikes=zeros(1,numel(periodBehavData_ms));
 % fakeUnitSpikes([0 diff(BP_periodBehavData_ms)]>0 &...
 % [0,0,diff(diff(BP_periodBehavData_ms))]<0 &...
@@ -39,6 +39,7 @@ longestWhiskingPeriodIdx=whiskingPeriodIdxInfo.PixelIdxList{...
 % bestWhiskingPeriod=5; %if based on previous time chunk plots
 % timeIndex=(bestWhiskingPeriod-1)*60+1;
 % whiskingPeriod=int32(linspace(timeIndex*1000,(timeIndex+60)*1000-1,60*1000));
+% whiskingPeriod=true(1,length(whiskingPhase_ms)); 
 whiskingPeriod=whiskingPeriodIdx; %based on defined whisking periods
 phaseTuningSummaryFig=figure('position',[969    49   944   948],'name',recName);
 colormapSeed=lines;

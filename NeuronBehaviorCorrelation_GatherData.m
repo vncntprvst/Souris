@@ -18,7 +18,7 @@ function [recordingTraces,spikeRasters_ms,rasterXInd_ms,rasterYInd_ms,samplingRa
 
 %% Locate data
 spikeSortingFiles = cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
-    {'*.result.hdf5','*_rez.mat','*_jrc.mat','*.csv','*_spikesResorted.mat'},'UniformOutput', false);
+    {'*_spikes.mat','*.result.hdf5','*_rez.mat','*_jrc.mat','*.csv','*_spikesResorted.mat'},'UniformOutput', false);
 spikeSortingFiles=vertcat(spikeSortingFiles{~cellfun('isempty',spikeSortingFiles)});
 % do not include those files:
 spikeSortingFiles=spikeSortingFiles(~cellfun(@(flnm) contains(flnm,{'DeepCut','Whisker','trial'}),...
@@ -126,13 +126,17 @@ filterTraces=false;
 spikes=LoadSpikeData(recName,traces);
 
 %% Load TTLs (are they needed?)
-TTLDir=TTLFiles(TTLFileNum).folder;
-TTLFileName= TTLFiles(TTLFileNum).name;%[regexp(recName,'\S+?(?=_export)','match','once') '_TTLs.dat'];
-fid = fopen(fullfile(TTLDir,TTLFileName), 'r');
-TTLTimes = fread(fid,[2,Inf],'int32');
-fclose(fid);
-TTLs.times=TTLTimes(1,:);
-TTLs.samplingRate=1000;
+try
+    TTLDir=TTLFiles(TTLFileNum).folder;
+    TTLFileName= TTLFiles(TTLFileNum).name;%[regexp(recName,'\S+?(?=_export)','match','once') '_TTLs.dat'];
+    fid = fopen(fullfile(TTLDir,TTLFileName), 'r');
+    TTLTimes = fread(fid,[2,Inf],'int32');
+    fclose(fid);
+    TTLs.times=TTLTimes(1,:);
+    TTLs.samplingRate=1000;
+catch
+    TTLs=[];
+end
 
 %% Read frame times
 videoFrameDir=videoFrameTimeFiles(1).folder;
@@ -161,12 +165,21 @@ if contains(whiskerTrackFileName,'.csv') % e.g. WhiskerAngle.csv
             whiskerTrackingData = ImportDLCWhiskerTrackingCSV(fullfile(...
                 whiskerTrackDir,whiskerTrackFileName));
         else %assuming from Bonsai
-%             export from Bonsai has either one column (old type): Orientation
-%               or three columns:  Centroid.X Centroid.Y Orientation
+%             depending on version, export from Bonsai has either
+%               one column: Orientation
+%               three columns:  Centroid.X Centroid.Y Orientation
+%               6 times three columns: Base, Centroid.X and Centroid.Y for each whisker
             if numel(wTrackNumFile)==1
-                whiskerTrackingData=ImportCSVasVector(fullfile(whiskerTrackDir,whiskerTrackFileName));
-                if size(whiskerTrackingData,2)>1
-                    whiskerTrackingData=whiskerTrackingData(:,1:2);
+                if contains(whiskerTrackFileName,'BaseCentroid')   
+                    whiskerTrackingData=readtable(fullfile(whiskerTrackDir,whiskerTrackFileName));
+                    ContinuityWhiskerID(whiskerTrackingData);
+                else
+                    delimiter=' ';hasHeader=false;
+                    whiskerTrackingData=ImportCSVasVector(...
+                        fullfile(whiskerTrackDir,whiskerTrackFileName),delimiter,hasHeader);
+                    if size(whiskerTrackingData,2)>1
+                        whiskerTrackingData=whiskerTrackingData(:,1:2);
+                    end
                 end
             else              
                 whiskerTrackDir=whiskerTrackingFiles(wTrackNumFile(2)).folder;
@@ -220,7 +233,9 @@ vidTimes=vFrameTimes(1,vFrameTimes(2,:)<0)-double(startTime); %when using Paul's
 if spikes.times(end) > size(allTraces,2)
     spikes.times=spikes.times-startTime;
 end
-TTLs.times=TTLs.times-double(startTime/(samplingRate/1000));
+if ~isempty(TTLs)
+    TTLs.times=TTLs.times-double(startTime/(samplingRate/1000));
+end
 % then sync
 if vidTimes(1)>=0
     allTraces=allTraces(:,vidTimes(1):vidTimes(end));

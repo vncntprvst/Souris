@@ -139,7 +139,7 @@ saveas(SpikeWAngleCorrFigure,[recName '_SpikeWAngleCorr.png'])
 % traceId=mode(preferredElectrode(unitID==unitsOfInterest(1)));
 % traceNum=find(keepTraces==traceId); %3;
 % vIRtTrace=recordingTraces(traceNum,:);
-% % midRec=round(length(vIRtTrace)/2)/30000;
+% midRec=round(length(vIRtTrace)/2)/30000;
 % vibrissaAngle=resample(HP_periodBehavData_ms,30,1); %upsampling back to 30kHz
 % 
 % figure('Color','white');

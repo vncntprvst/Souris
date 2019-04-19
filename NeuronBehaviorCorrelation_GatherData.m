@@ -172,7 +172,7 @@ if contains(whiskerTrackFileName,'.csv') % e.g. WhiskerAngle.csv
             if numel(wTrackNumFile)==1
                 if contains(whiskerTrackFileName,'BaseCentroid')   
                     whiskerTrackingData=readtable(fullfile(whiskerTrackDir,whiskerTrackFileName));
-                    ContinuityWhiskerID(whiskerTrackingData);
+                    whiskerTrackingData=ContinuityWhiskerID(whiskerTrackingData);
                 else
                     delimiter=' ';hasHeader=false;
                     whiskerTrackingData=ImportCSVasVector(...

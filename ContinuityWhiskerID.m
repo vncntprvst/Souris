@@ -1,4 +1,9 @@
 function whiskerTrackingData=ContinuityWhiskerID(whiskerTrackingData)
+% Finds continuous values for each identified whisker
+% Outputs whisker centroids (x/y in alternate columns) for each frame
+% (rows). 3rd dimension contains whisker "base" x/y values, to derive
+% angle.
+
 %% use base points to derive whisker id
 emptyVariables=isnan(nanmean(whiskerTrackingData.Variables));
 variableNames=whiskerTrackingData.Properties.VariableNames(~emptyVariables);
@@ -6,6 +11,8 @@ whiskerData=whiskerTrackingData(:,~emptyVariables).Variables;
 baseData=whiskerData(:,cellfun(@(varName) contains(varName,'Base'),variableNames));
 centroidXData=whiskerData(:,cellfun(@(varName) contains(varName,'Centroid_X'),variableNames));
 centroidYData=whiskerData(:,cellfun(@(varName) contains(varName,'Centroid_Y'),variableNames));
+baseXData=baseData(:,1:2:size(baseData,2));
+baseYData=baseData(:,2:2:size(baseData,2));
 
 % base continuity on base x or y, whichever has lower std
 baseVar=[mean(nanstd(baseData(:,1:2:size(baseData,2)))),...
@@ -18,6 +25,8 @@ cdBaseData=baseData(:,contDirection:2:size(baseData,2));
 for rowNum=1:size(cdBaseData,1)
     centroidXData(rowNum,:)=centroidXData(rowNum,baseIdx(rowNum,:));
     centroidYData(rowNum,:)=centroidYData(rowNum,baseIdx(rowNum,:));
+    baseXData(rowNum,:)=baseXData(rowNum,baseIdx(rowNum,:));
+    baseYData(rowNum,:)=baseYData(rowNum,baseIdx(rowNum,:));
 end
 % 
 lowestInitialW=find(~isnan(corrCdBaseData(1,:)),1,'last');
@@ -41,6 +50,12 @@ for nanPeriod=1:missingValPeriods.NumObjects
             centroidYData(missingValPeriods.PixelIdxList{nanPeriod},:)=...
                 [nan(numel(missingValPeriods.PixelIdxList{nanPeriod}),baseGap) ...
                 centroidYData(missingValPeriods.PixelIdxList{nanPeriod},1:end-baseGap)];
+            baseXData(missingValPeriods.PixelIdxList{nanPeriod},:)=...
+                [nan(numel(missingValPeriods.PixelIdxList{nanPeriod}),baseGap) ...
+                baseXData(missingValPeriods.PixelIdxList{nanPeriod},1:end-baseGap)];
+            baseYData(missingValPeriods.PixelIdxList{nanPeriod},:)=...
+                [nan(numel(missingValPeriods.PixelIdxList{nanPeriod}),baseGap) ...
+                baseYData(missingValPeriods.PixelIdxList{nanPeriod},1:end-baseGap)];
         elseif baseGap<0
             corrCdBaseData(missingValPeriods.PixelIdxList{nanPeriod},:)=...
                 [corrCdBaseData(missingValPeriods.PixelIdxList{nanPeriod},1+abs(baseGap):end) ...
@@ -51,16 +66,24 @@ for nanPeriod=1:missingValPeriods.NumObjects
             centroidYData(missingValPeriods.PixelIdxList{nanPeriod},:)=...
                 [centroidYData(missingValPeriods.PixelIdxList{nanPeriod},1+abs(baseGap):end) ...
                 nan(numel(missingValPeriods.PixelIdxList{nanPeriod}),abs(baseGap))];
+            baseXData(missingValPeriods.PixelIdxList{nanPeriod},:)=...
+                [baseXData(missingValPeriods.PixelIdxList{nanPeriod},1+abs(baseGap):end) ...
+                nan(numel(missingValPeriods.PixelIdxList{nanPeriod}),abs(baseGap))];
+            baseYData(missingValPeriods.PixelIdxList{nanPeriod},:)=...
+                [baseYData(missingValPeriods.PixelIdxList{nanPeriod},1+abs(baseGap):end) ...
+                nan(numel(missingValPeriods.PixelIdxList{nanPeriod}),abs(baseGap))];
         end
     end
 end
 
-%keep the one with the most elements
-numNonNan=sum(~isnan(centroidXData));
-whiskerTrackingData=[centroidXData(:,numNonNan==max(numNonNan)),...
-    centroidYData(:,numNonNan==max(numNonNan))];
+%order them by the number of elements
+[~,sortNonNan]=sort(sum(~isnan(centroidXData)),'descend');
+whiskerTrackingData=[centroidXData(:,sortNonNan),centroidYData(:,sortNonNan)];
+whiskerTrackingData=cat(3,whiskerTrackingData,[baseXData(:,sortNonNan),baseYData(:,sortNonNan)]);
+whiskerTrackingData=whiskerTrackingData(:,reshape([1:size(baseData,2)/2;...
+    size(baseData,2)/2+1:size(baseData,2)],1,size(baseData,2)),:);
 
-% % plots
+%% plots
 % figure; hold on
 % for whiskBase=1:2:size(baseData,2)
 %     plot(baseData(:,whiskBase),baseData(:,whiskBase+1),'.')

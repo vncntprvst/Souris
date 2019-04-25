@@ -1,3 +1,6 @@
+function NBC_Plots_SpikesWhiskingOverlayOnVideo
+
+
 %original video
 [vFileName,vDirName] = uigetfile({'*.mp4;*.avi','video Files';'*.*','All Files'},...
     'Video file');

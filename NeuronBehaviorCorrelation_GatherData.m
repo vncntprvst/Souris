@@ -1,12 +1,8 @@
-function [recordingTraces,spikeRasters_ms,rasterXInd_ms,rasterYInd_ms,samplingRate,...
-    SDFs_ms,spikeTimes,waveForms,unitID,preferredElectrode,keepUnits,...
-    BP_periodBehavData_ms,HP_periodBehavData_ms,LP_periodBehavData_ms,...
-    HTBP_periodBehavData_ms, peakWhisking_ms,periodBehavData_ms,...
-    whiskingPhase_ms,instantFreq_ms,sgFreq,sgTime,sgPower,recName,vidTimes_ms] = NeuronBehaviorCorrelation_GatherData
+function [ephys,behav]=NeuronBehaviorCorrelation_GatherData
 
 % Gather data for analysis of correlation between bursts/spike rate and periodic behaviors (whisking, breathing)
 % Simplified version
-
+startingDir=cd;
 %% Place files to analyze in current folder
 % Required file(s):
 %     spike times
@@ -18,7 +14,7 @@ function [recordingTraces,spikeRasters_ms,rasterXInd_ms,rasterYInd_ms,samplingRa
 
 %% Locate data
 spikeSortingFiles = cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
-    {'*_spikes.mat','*.result.hdf5','*_rez.mat','*_jrc.mat','*.csv','*_spikesResorted.mat'},'UniformOutput', false);
+    {'*_spikes.mat','*.result.hdf5','*_rez.mat','*_res.mat','*_jrc.mat','*.csv','*_spikesResorted.mat'},'UniformOutput', false);
 spikeSortingFiles=vertcat(spikeSortingFiles{~cellfun('isempty',spikeSortingFiles)});
 % do not include those files:
 spikeSortingFiles=spikeSortingFiles(~cellfun(@(flnm) contains(flnm,{'DeepCut','Whisker','trial'}),...
@@ -42,12 +38,12 @@ dataFiles=dataFiles(cellfun(@(flnm) contains(flnm,{'_export';'_traces'}),...
 %         '*.*','All Files'},'Whisker angle / Perodical Behavior Data / Video file','C:\Data\Ephys\Behav');
 % end
 whiskerTrackingFiles=cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
-    {'*.csv'},'UniformOutput', false);
+    {'*.csv','whiskerTrackingData'},'UniformOutput', false);
 whiskerTrackingFiles=vertcat(whiskerTrackingFiles{~cellfun('isempty',whiskerTrackingFiles)});
 whiskerTrackingFiles=whiskerTrackingFiles(cellfun(@(flnm) contains(flnm,{'DeepCut','Whisker'}),...
     {whiskerTrackingFiles.name}));
 
-%% Get video sync data 
+%% Get video sync data
 videoFrameTimeFiles=cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
     {'*.dat'},'UniformOutput', false);
 videoFrameTimeFiles=vertcat(videoFrameTimeFiles{~cellfun('isempty',videoFrameTimeFiles)});
@@ -59,14 +55,19 @@ videoFrameTimeFiles=videoFrameTimeFiles(cellfun(@(flnm) contains(flnm,{'_VideoFr
 spikeFileNum=1; dataFileNum=1; TTLFileNum=1; wTrackNumFile=1; %[1,2]; vFrameFileNum=1;
 if sum(cellfun(@(flnm) contains(flnm,'vSync'),{videoFrameTimeFiles.name}))
     videoFrameTimeFiles=videoFrameTimeFiles(cellfun(@(flnm) contains(flnm,'vSync'),...
-    {videoFrameTimeFiles.name}));
+        {videoFrameTimeFiles.name}));
 else
     videoFrameTimeFiles=videoFrameTimeFiles(cellfun(@(flnm) contains(flnm,'_VideoFrameTimes'),...
-    {videoFrameTimeFiles.name}));
-
+        {videoFrameTimeFiles.name}));
+    
 end
 
 %% Load spikes and recording traces
+spikeSortFromExportIdx=cellfun(@(flnm) contains(flnm,'_export'),{spikeSortingFiles.name});
+if sum(spikeSortFromExportIdx)
+    % prefer offline spike sorting results
+    spikeSortingFiles=spikeSortingFiles(spikeSortFromExportIdx);
+end
 recDir=spikeSortingFiles(spikeFileNum).folder;
 recName=spikeSortingFiles(spikeFileNum).name;
 cd(recDir)
@@ -76,10 +77,10 @@ load(spikeSortingFiles(spikeFileNum).name,'rec_info')
 if ~exist('rec_info','var')
     load([dataFiles(spikeFileNum).name(1:end-10) 'recInfo']);
 else
-    recInfo=rec_info; clear rec_info; 
+    recInfo=rec_info; clear rec_info;
 end
 if isfield(recInfo,'exportedChan')
-    numElectrodes=numel(recInfo.exportedChan); 
+    numElectrodes=numel(recInfo.exportedChan);
 elseif isfield(recInfo,'numRecChan')
     numElectrodes=numel(recInfo.numRecChan); %32 %numel(unique(spikes.preferredElectrode));
 else
@@ -108,23 +109,26 @@ dataFileDir=dataFiles(dataFileIdx).folder;
 %             nData = floor((S_file(1).bytes - header) / bytesPerSample_(dataType));
 %             dimm = [nData, 1]; %return column
 %         end
-% 
+%
 % fread_(foo,[32 14 187354],'int16');
 % fclose(foo);
- 
+
 traces = memmapfile(fullfile(dataFileDir,dataFileName),'Format','int16');
-allTraces=double(traces.Data); 
+allTraces=double(traces.Data);
 recDuration=int64(length(allTraces)/numElectrodes);
 try
     allTraces=reshape(allTraces,[numElectrodes recDuration]);
-%     allTraces=reshape(trWav_raw,[numElectrodes size(trWav_raw,2)*size(trWav_raw,3)]);
+    %     allTraces=reshape(trWav_raw,[numElectrodes size(trWav_raw,2)*size(trWav_raw,3)]);
 catch
     allTraces=reshape(allTraces',[recDuration numElectrodes]);
 end
 filterTraces=false;
 
 spikes=LoadSpikeData(recName,traces);
-
+if isfield(spikes,'samplingRate') && isempty(spikes.samplingRate)
+    spikes.samplingRate=recInfo.samplingRate;
+    spikes.bitResolution=recInfo.bitResolution;
+end
 %% Load TTLs (are they needed?)
 try
     TTLDir=TTLFiles(TTLFileNum).folder;
@@ -155,52 +159,57 @@ else % csv file from Bonsai
 end
 
 %% Import whisker tracking data (aka "thetas")
-% variable frame rate typically ~500Hz
-whiskerTrackDir=whiskerTrackingFiles(1).folder;
-whiskerTrackFileName= whiskerTrackingFiles(1).name;
-if contains(whiskerTrackFileName,'.csv') % e.g. WhiskerAngle.csv
-    if contains(whiskerTrackFileName,'.npy')
-    elseif contains(whiskerTrackFileName,'.csv')
-        if contains(whiskerTrackFileName,'DeepCut') || contains(whiskerTrackFileName,'DLC')
-            whiskerTrackingData = ImportDLCWhiskerTrackingCSV(fullfile(...
-                whiskerTrackDir,whiskerTrackFileName));
-        else %assuming from Bonsai
-%             depending on version, export from Bonsai has either
-%               one column: Orientation
-%               three columns:  Centroid.X Centroid.Y Orientation
-%               6 times three columns: Base, Centroid.X and Centroid.Y for each whisker
-            if numel(wTrackNumFile)==1
-                if contains(whiskerTrackFileName,'BaseCentroid')   
-                    whiskerTrackingData=readtable(fullfile(whiskerTrackDir,whiskerTrackFileName));
-                    whiskerTrackingData=ContinuityWhiskerID(whiskerTrackingData);
-                else
-                    delimiter=' ';hasHeader=false;
-                    whiskerTrackingData=ImportCSVasVector(...
-                        fullfile(whiskerTrackDir,whiskerTrackFileName),delimiter,hasHeader);
-                    if size(whiskerTrackingData,2)>1
-                        whiskerTrackingData=whiskerTrackingData(:,1:2);
+isWTData=cellfun(@(x) contains(x,'whiskerTrackingData'), {whiskerTrackingFiles.name});
+if sum(isWTData)
+    load(fullfile(whiskerTrackingFiles(isWTData).folder,whiskerTrackingFiles(isWTData).name));
+else
+    % variable frame rate typically ~500Hz
+    whiskerTrackDir=whiskerTrackingFiles(1).folder;
+    whiskerTrackFileName= whiskerTrackingFiles(1).name;
+    if contains(whiskerTrackFileName,'.csv') % e.g. WhiskerAngle.csv
+        if contains(whiskerTrackFileName,'.npy')
+        elseif contains(whiskerTrackFileName,'.csv')
+            if contains(whiskerTrackFileName,'DeepCut') || contains(whiskerTrackFileName,'DLC')
+                whiskerTrackingData = ImportDLCWhiskerTrackingCSV(fullfile(...
+                    whiskerTrackDir,whiskerTrackFileName));
+            else %assuming from Bonsai
+                %             depending on version, export from Bonsai has either
+                %               one column: Orientation
+                %               three columns:  Centroid.X Centroid.Y Orientation
+                %               6 times three columns: Base, Centroid.X and Centroid.Y for each whisker
+                if numel(wTrackNumFile)==1
+                    if contains(whiskerTrackFileName,'BaseCentroid')
+                        whiskerTrackingData=readtable(fullfile(whiskerTrackDir,whiskerTrackFileName));
+                        whiskerTrackingData=ContinuityWhiskerID(whiskerTrackingData);
+                    else
+                        delimiter=' ';hasHeader=false;
+                        whiskerTrackingData=ImportCSVasVector(...
+                            fullfile(whiskerTrackDir,whiskerTrackFileName),delimiter,hasHeader);
+                        if size(whiskerTrackingData,2)>1
+                            whiskerTrackingData=whiskerTrackingData(:,1:2);
+                        end
                     end
+                else
+                    whiskerTrackDir=whiskerTrackingFiles(wTrackNumFile(2)).folder;
+                    whiskerTrackFileName= whiskerTrackingFiles(wTrackNumFile(2)).name;
+                    multiWhiskerTrackingData=ImportCSVasVector(fullfile(whiskerTrackDir,whiskerTrackFileName));
+                    % Multiwhiskerfor up to 5 main whiskers (NaN if less)
+                    whiskerTrackingData=multiWhiskerTrackingData(:,7); %posterior most whisker
                 end
-            else              
-                whiskerTrackDir=whiskerTrackingFiles(wTrackNumFile(2)).folder;
-                whiskerTrackFileName= whiskerTrackingFiles(wTrackNumFile(2)).name;
-                multiWhiskerTrackingData=ImportCSVasVector(fullfile(whiskerTrackDir,whiskerTrackFileName));
-            % Multiwhiskerfor up to 5 main whiskers (NaN if less)
-                whiskerTrackingData=multiWhiskerTrackingData(:,7); %posterior most whisker
+                whiskerTrackingData=WhiskerAngleSmoothFill(whiskerTrackingData); %(:,1),whiskerTrackingData(:,2));
+                %     figure; hold on; plot(whiskerTrackingData(1,:))
+                %adjust base angle if needed, e.g. 45degrees at full retraction:
+                %             whiskerTrackingData=whiskerTrackingData-min(whiskerTrackingData)+45;
             end
-            whiskerTrackingData=WhiskerAngleSmoothFill(whiskerTrackingData(:,1),whiskerTrackingData(:,2));
-            %     figure; hold on; plot(whiskerTrackingData)
-            %adjust base angle if needed, e.g. 45degrees at full retraction:
-%             whiskerTrackingData=whiskerTrackingData-min(whiskerTrackingData)+45;
+        elseif contains(whiskerTrackFileName,'.avi') %video file to extract whisker angle
+            whiskerTrackingData=ExtractMultiWhiskerAngle_FFTonContours(fullfile(dirName,fileName));
+            whiskerTrackingData=smoothdata(whiskerTrackingData,'rloess',20);
+        else
+            load([dirName fileName]);
         end
-    elseif contains(whiskerTrackFileName,'.avi') %video file to extract whisker angle
-        whiskerTrackingData=ExtractMultiWhiskerAngle_FFTonContours(fullfile(dirName,fileName));
-        whiskerTrackingData=smoothdata(whiskerTrackingData,'rloess',20);
-    else
-        load([dirName fileName]);
     end
+    save('whiskerTrackingData','whiskerTrackingData');
 end
-
 %% Recording start time (mostly for OE)
 % Processor: Rhythm FPGA Id: 100 subProcessor: 0 start time: 27306000@30000Hz
 if exist('recInfo','var') & isfield(recInfo,'recordingStartTime')
@@ -211,8 +220,10 @@ else
 end
 
 %% Add voltage scaling factor and sampling rate
-bitResolution=0.195; %for Open Ephys
-spikes.waveforms=double(spikes.waveforms.*bitResolution);
+if ~isfield(spikes,'bitResolution') | (isfield(spikes,'bitResolution') && isempty(spikes.bitResolution))
+    spikes.bitResolution=0.195; %for Open Ephys
+end
+spikes.waveforms=double(spikes.waveforms.*spikes.bitResolution);
 if isfield(spikes,'samplingRate')
     samplingRate=unique(spikes.samplingRate);
 else
@@ -224,7 +235,7 @@ if filterTraces == true
     allTraces=FilterTrace(allTraces,samplingRate);
 end
 
-%% Sync ephys and behavior (video) 
+%% Sync ephys and behavior (video)
 % convert video frame times to native recording frame rate (typically 30kHz) if needed
 % first remove recording start clock time
 vidTimes=vFrameTimes(1,vFrameTimes(2,:)<0)-double(startTime); %when using Paul's OE Basler module
@@ -242,7 +253,7 @@ if vidTimes(1)>=0
     spikeReIndex=spikes.times>=vidTimes(1) & spikes.times<=vidTimes(end);
     spikes.unitID=spikes.unitID(spikeReIndex);
     try
-    spikes.preferredElectrode=spikes.preferredElectrode(spikeReIndex);
+        spikes.preferredElectrode=spikes.preferredElectrode(spikeReIndex);
     catch %might referenced by cluster or electrodes
     end
     try
@@ -265,30 +276,31 @@ spikes.times=double(spikes.times);
 [unitFreq,freqIdx]=sort(unitFreq','descend');
 unitFreq=unitFreq./sum(unitFreq)*100; uniqueUnitIDs=uniqueUnitIDs(freqIdx);
 bestUnitsIdx=find(unitFreq>0.1);
-keepUnits=uniqueUnitIDs(bestUnitsIdx); keepUnits=sort(keepUnits(keepUnits~=0));
+bestUnits=uniqueUnitIDs(bestUnitsIdx); bestUnits=sort(bestUnits(bestUnits~=0));
 if isfield(spikes,'preferredElectrode')
     try
-        titularChannels = unique(spikes.preferredElectrode(ismember(spikes.unitID,keepUnits)));
+        titularChannels = unique(spikes.preferredElectrode(ismember(spikes.unitID,bestUnits)));
     catch
         titularChannels =find(~cellfun('isempty',spikes.preferredElectrode));
     end
 end
 % keepUnits=[1 2 3];
 % titularChannels=[10 10 10];
-keepTraces=titularChannels; %14; %[10 14 15];% keepTraces=1:16; %[10 14 15];
+% keepTraces=titularChannels; %14; %[10 14 15];% keepTraces=1:16; %[10 14 15];
+keepTraces=1:size(allTraces,1);
 
 %% Keep selected recording trace and spike times,
 recordingTraces=allTraces(keepTraces,:); %select the trace to keep
 try
-keepUnitsIdx=ismember(spikes.preferredElectrode,keepTraces);
-unitID=spikes.unitID(keepUnitsIdx);
-preferredElectrode=spikes.preferredElectrode(keepUnitsIdx);
-try
-    waveForms=spikes.waveforms(keepUnitsIdx,:);
-catch
-    waveForms=[];
-end
-spikeTimes=spikes.times(keepUnitsIdx);
+    keepUnitsIdx=ismember(spikes.preferredElectrode,keepTraces);
+    unitID=spikes.unitID(keepUnitsIdx);
+    preferredElectrode=spikes.preferredElectrode(keepUnitsIdx);
+    try
+        waveForms=spikes.waveforms(keepUnitsIdx,:);
+    catch
+        waveForms=[];
+    end
+    spikeTimes=spikes.times(keepUnitsIdx);
 catch
     unitID=spikes.unitID;
     spikeTimes=spikes.times;
@@ -302,7 +314,7 @@ end
 %     recordingTrace{traceNum}=recordingTrace{traceNum}(TTLs.times(1)*double(samplingRate)/...
 %         double(TTLs.samplingRate):end); % cut out trace that occurs before first TTL
 % end
-% 
+%
 % % same for spikes from selected units
 % spikeTimes=cell(length(keepUnits),1);
 % for clusterNum=1:length(keepUnits)
@@ -314,7 +326,7 @@ end
 
 % figure('Color','white');
 % for traceNum=1:length(keepTraces)
-% %     subplot(length(keepTraces),1,traceNum); 
+% %     subplot(length(keepTraces),1,traceNum);
 %     figure('Color','white'); hold on;
 %     plot(recordingTraces(traceNum,:));
 %     correspondingUnits=unique(unitID(ismember(preferredElectrode,keepTraces(traceNum))));
@@ -346,9 +358,9 @@ end
 % foo=[zeros(round(spikeTimes(1)/double(samplingRate)*Fs)-1,1);foo]; %need to padd with zeroes
 % With home-made function. Same result, but takes care of the padding
 binSize=1;
-spikeRasters_ms=zeros(numel(keepUnits),ceil(size(recordingTraces,2)/samplingRate*1000));
-for clusterNum=1:length(keepUnits)
-    unitIdx=unitID==keepUnits(clusterNum);
+spikeRasters_ms=zeros(numel(bestUnits),ceil(size(recordingTraces,2)/samplingRate*1000));
+for clusterNum=1:length(bestUnits)
+    unitIdx=unitID==bestUnits(clusterNum);
     lengthUnitTimeArray=ceil(spikeTimes(find(unitIdx,1,'last'))/samplingRate*1000);
     spikeRasters_ms(clusterNum,1:lengthUnitTimeArray)=DownSampleToMilliseconds(...
         spikeTimes(unitIdx),binSize,samplingRate);
@@ -360,8 +372,8 @@ end
 % plot(find(foo),ones(length(find(foo)),1)*-200,'g*')
 
 %% Compute sdfs
-SDFs_ms=nan(length(keepUnits), ceil(size(recordingTraces,2)/samplingRate*1000));
-for clusterNum=1:length(keepUnits)
+SDFs_ms=nan(length(bestUnits), ceil(size(recordingTraces,2)/samplingRate*1000));
+for clusterNum=1:length(bestUnits)
     SDFs_ms(clusterNum,:)=GaussConv(spikeRasters_ms(clusterNum,:),5)*1000;
 end
 % figure; hold on
@@ -369,16 +381,16 @@ end
 % plot(find(binSpikeTimes{1}),ones(length(find(binSpikeTimes{1})),1)*-10,'r*')
 
 %% Compute raster indices
-[rasterYInd_ms, rasterXInd_ms]=deal(cell(length(keepUnits),1));
-for clusterNum=1:length(keepUnits)
+[rasterYInd_ms, rasterXInd_ms]=deal(cell(length(bestUnits),1));
+for clusterNum=1:length(bestUnits)
     [rasterYInd_ms{clusterNum}, rasterXInd_ms{clusterNum}] =...
         ind2sub(size(spikeRasters_ms(clusterNum,:)),find(spikeRasters_ms(clusterNum,:))); %find row and column coordinates of spikes
 end
 % rasters=[indx indy;indx indy+1];
 
 %% Create array with angle values and time points
-if numel(whiskerTrackingData)~=numel(vidTimes)
-    whiskerTrackingData=whiskerTrackingData(1:numel(vidTimes)); %but check why that is
+if numel(whiskerTrackingData(1,:))~=numel(vidTimes)
+    whiskerTrackingData=whiskerTrackingData(:,1:numel(vidTimes)); %but check why that is
 end
 % periodBehavData=[whiskerTrackingData',vidTimes'];
 % periodBehavData=[whiskerTrackingData(videoFrameTimes.TTLFrames(1):...
@@ -391,75 +403,93 @@ end
 %resample to 1ms precision
 vidTimes_ms=vidTimes/samplingRate*1000;
 % [periodBehavData(:,1),periodBehavData(:,2)] = resample(periodBehavData(:,1),periodBehavData(:,2),'pchip');
-periodBehavData_ms=interp1(vidTimes_ms,whiskerTrackingData,...
-    vidTimes_ms(1):vidTimes_ms(end));
-% figure; plot(periodBehavData_ms);
-
-%% Plot behavior data and find a period with whisking bouts
-% no need to keep periods with no whisking
-% figure; plot(periodBehavData); % select data point and export cursor info
-% whiskingPeriod=1:cursor_info.Position(1); %in ms
-peakWhisking_ms=diff(cummax(abs(diff(periodBehavData_ms))));
-% peakWhiskingIdx=find(peakWhisking_ms==max(peakWhisking_ms));
-% whiskingPeriod=peakWhiskingIdx-5000:peakWhiskingIdx+4999; %in ms
-
-%% Filter periodic behavior traces into low-pass and bandpassed versions
-LP_periodBehavData_ms=FilterTrace(periodBehavData_ms,1000,0.3,'low'); %set-point
-% figure; hold on
-% plot(periodBehavData_ms); plot(LP_periodBehavData_ms,'LineWidth',2)
-
-BP_periodBehavData_ms=FilterTrace(periodBehavData_ms,1000,[0.3 20],'bandpass'); %whisking
-% figure; hold on %plot(foo) % plot(periodBehavData_ms)
-% plot(periodBehavData_ms-mean(periodBehavData_ms)); plot(BP_periodBehavData_ms,'LineWidth',1)
-
-HP_periodBehavData_ms=FilterTrace(periodBehavData_ms,1000,0.3,'high')'; %whisking
-% plot(HP_periodBehavData_ms,'LineWidth',1)
-
-% make sure behavior and spike traces have same length
-if size(SDFs_ms,2)~=numel(periodBehavData_ms)
-    % check what 
+for whiskerTraceNum=1:size(whiskerTrackingData,1)
+    periodBehavData_ms(whiskerTraceNum,:)=interp1(vidTimes_ms,whiskerTrackingData(whiskerTraceNum,:),...
+        vidTimes_ms(1):vidTimes_ms(end));
+    % figure; plot(periodBehavData_ms(whiskerTraceNum,:));
+    
+    %% Plot behavior data and find a period with whisking bouts
+    % no need to keep periods with no whisking
+    % figure; plot(periodBehavData); % select data point and export cursor info
+    % whiskingPeriod=1:cursor_info.Position(1); %in ms
+    peakWhisking_ms(whiskerTraceNum,:)=diff(cummax(abs(diff(periodBehavData_ms(whiskerTraceNum,:)))));
+    % peakWhiskingIdx=find(peakWhisking_ms==max(peakWhisking_ms));
+    % whiskingPeriod=peakWhiskingIdx-5000:peakWhiskingIdx+4999; %in ms
+    
+    %% Filter periodic behavior traces into low-pass and bandpassed versions
+    LP_periodBehavData_ms(whiskerTraceNum,:)=...
+        FilterTrace(periodBehavData_ms(whiskerTraceNum,:),1000,0.3,'low'); %set-point
+    % figure; hold on
+    % plot(periodBehavData_ms(whiskerTraceNum,:)); plot(LP_periodBehavData_ms(whiskerTraceNum,:),'LineWidth',2)
+    
+    BP_periodBehavData_ms(whiskerTraceNum,:)=...
+        FilterTrace(periodBehavData_ms(whiskerTraceNum,:),1000,[0.3 20],'bandpass'); %whisking
+    % figure; hold on %plot(foo) % plot(periodBehavData_ms(whiskerTraceNum,:))
+    % plot(periodBehavData_ms(whiskerTraceNum,:)-mean(periodBehavData_ms(whiskerTraceNum,:))); plot(BP_periodBehavData_ms(whiskerTraceNum,:),'LineWidth',1)
+    
+    HP_periodBehavData_ms(whiskerTraceNum,:)=...
+        FilterTrace(periodBehavData_ms(whiskerTraceNum,:),1000,0.3,'high')'; %whisking
+    % plot(HP_periodBehavData_ms(whiskerTraceNum,:),'LineWidth',1)
+    
+    % make sure behavior and spike traces have same length
+    if size(SDFs_ms,2)~=numel(periodBehavData_ms(whiskerTraceNum,:))
+        % check what
+    end
+    
+    if exist('whiskingPeriod','var')
+        %     sdf=sdf(whiskingPeriod);
+        %     LP_periodBehavData=LP_periodBehavData(whiskingPeriod);
+        %     BP_periodBehavData=BP_periodBehavData(whiskingPeriod);
+    end
+    
+    % figure; hold on
+    % plot(SDFs{1}); plot(BP_periodBehavData/min(BP_periodBehavData)*...
+    %     max(SDFs{1}) + max(SDFs{1}))
+    
+    %% Hilbert transform
+    % Hilbert transform NEEDS ANGLE TO BE ZERO CENTERED !!!
+    % periodicSignal=smoothdata(BP_periodBehavData_ms(whiskerTraceNum,:),'robustfit');
+    % -mean(BP_periodBehavData_ms(whiskerTraceNum,:));
+    % baseSignal=FilterTrace(periodicSignal,1000,0.3,'low');
+    % baseSignal=LP_periodBehavData_ms(whiskerTraceNum,:)-mean(LP_periodBehavData_ms(whiskerTraceNum,:));
+    % figure; hold on; plot(periodicSignal);
+    % periodicSignal(abs(periodicSignal)<2*std(abs(periodicSignal)))=0;plot(baseSignal);
+    HTBP_periodBehavData_ms(whiskerTraceNum,:)=hilbert(BP_periodBehavData_ms(whiskerTraceNum,:));
+    % figure; plot(imag(HTBP_periodBehavData_ms(whiskerTraceNum,:)));
+    % foo=abs(imag(HTBP_periodBehavData_ms(whiskerTraceNum,:)))<mad((imag(HTBP_periodBehavData_ms(whiskerTraceNum,:))));
+    % bla=imag(HTBP_periodBehavData_ms(whiskerTraceNum,:)); bla(foo)=0; plot(bla)
+    % plot(imag(HTBP_periodBehavData_ms(whiskerTraceNum,:)));
+    whiskingPhase_ms(whiskerTraceNum,:)=angle(HTBP_periodBehavData_ms(whiskerTraceNum,:));
+    % whiskingPhase_ms(foo)=0;
+    % plot(whiskingPhase_ms)
+    % figure; hold on
+    % plot(SDFs); plot(whiskingPhase*10 + max(SDFs))
+    
+    %% Find instantaneous frequency
+    Nfft = 1024;
+    % [Pxx,f] = pwelch(BP_periodBehavData,gausswin(Nfft),Nfft/2,Nfft,1000);
+    % figure; plot(f,Pxx); ylabel('PSD'); xlabel('Frequency (Hz)'); grid on;
+    [~,sgFreq(:,whiskerTraceNum),sgTime(whiskerTraceNum,:),sgPower(whiskerTraceNum,:,:)] =...
+        spectrogram(BP_periodBehavData_ms(whiskerTraceNum,:),gausswin(Nfft),Nfft/2,Nfft,1);
+    instantFreq_ms(whiskerTraceNum,:) = medfreq(squeeze(sgPower(whiskerTraceNum,:,:)),sgFreq(:,whiskerTraceNum));
+    % figure; plot(sgTime(whiskerTraceNum,:),round(instantFreq(whiskerTraceNum,:)*1000),'linewidth',2)
 end
-
-if exist('whiskingPeriod','var')
-    %     sdf=sdf(whiskingPeriod);
-    %     LP_periodBehavData=LP_periodBehavData(whiskingPeriod);
-    %     BP_periodBehavData=BP_periodBehavData(whiskingPeriod);
-end
-
-% figure; hold on
-% plot(SDFs{1}); plot(BP_periodBehavData/min(BP_periodBehavData)*...
-%     max(SDFs{1}) + max(SDFs{1}))
-
-%% Hilbert transform
-% Hilbert transform NEEDS ANGLE TO BE ZERO CENTERED !!!
-% periodicSignal=smoothdata(BP_periodBehavData_ms,'robustfit');
-% -mean(BP_periodBehavData_ms);
-% baseSignal=FilterTrace(periodicSignal,1000,0.3,'low');
-% baseSignal=LP_periodBehavData_ms-mean(LP_periodBehavData_ms);
-% figure; hold on; plot(periodicSignal);
-% periodicSignal(abs(periodicSignal)<2*std(abs(periodicSignal)))=0;plot(baseSignal);
-HTBP_periodBehavData_ms=hilbert(BP_periodBehavData_ms);
-% figure; plot(imag(HTBP_periodBehavData_ms));
-% foo=abs(imag(HTBP_periodBehavData_ms))<mad((imag(HTBP_periodBehavData_ms)));
-% bla=imag(HTBP_periodBehavData_ms); bla(foo)=0; plot(bla)
-% plot(imag(HTBP_periodBehavData_ms));
-whiskingPhase_ms=angle(HTBP_periodBehavData_ms);
-% whiskingPhase_ms(foo)=0;
-% plot(whiskingPhase_ms)
-% figure; hold on
-% plot(SDFs); plot(whiskingPhase*10 + max(SDFs))
-
-%% Find instantaneous frequency
-Nfft = 1024;
-% [Pxx,f] = pwelch(BP_periodBehavData,gausswin(Nfft),Nfft/2,Nfft,1000);
-% figure; plot(f,Pxx); ylabel('PSD'); xlabel('Frequency (Hz)'); grid on;
-[~,sgFreq,sgTime,sgPower] = spectrogram(BP_periodBehavData_ms,gausswin(Nfft),Nfft/2,Nfft,1);
-instantFreq_ms = medfreq(sgPower,sgFreq);
-% figure; plot(sgTime,round(instantFreq*1000),'linewidth',2)
-
 %%%%%%%%%%%%%%%%%%%%%%%
+%% group data in structure
+ephys=struct('recordingTraces',recordingTraces,'spikeRasters_ms',spikeRasters_ms,...
+...%     'rasterInd_ms',{rasterXInd_ms,rasterYInd_ms},...
+    'samplingRate',samplingRate,'SDFs_ms',SDFs_ms,'spikeTimes',spikeTimes,...
+    'waveForms',waveForms,'unitID',unitID,'preferredElectrode',preferredElectrode,...
+    'bestUnits',bestUnits,'recName',recName);
 
+behav=struct('BP_periodBehavData_ms',BP_periodBehavData_ms,'HP_periodBehavData_ms',...
+    HP_periodBehavData_ms,'LP_periodBehavData_ms',LP_periodBehavData_ms,...
+    'HTBP_periodBehavData_ms',HTBP_periodBehavData_ms,'peakWhisking_ms',peakWhisking_ms,...
+    'periodBehavData_ms',periodBehavData_ms,'whiskingPhase_ms',whiskingPhase_ms,...
+    'instantFreq_ms',instantFreq_ms,'sgFreq',sgFreq,'sgTime',sgTime,'sgPower',...
+    sgPower,'vidTimes_ms',vidTimes_ms);
 
+cd(startingDir);
 
 
 

@@ -15,13 +15,25 @@ elseif nargin==2 %centroid values
     centroidY=centroidY/max(abs(centroidY))*pi/2;
     thetas = FindAngle(centroidX,centroidY);
 elseif nargin==1 && min(size(varargin{1}))>1 % more than 1 whisker centroid values
-    centroidValues=varargin{1};
+    if numel(size(varargin{1}))==3 %variable also contains base data
+        centroidValues=varargin{1}(:,:,1);
+        baseValues=varargin{1}(:,:,2);
+    else
+        centroidValues=varargin{1};
+    end
     thetas=nan(size(centroidValues,2)/2,size(centroidValues,1));
     for whiskerNum=1:2:size(centroidValues,2)
         centroidX=centroidValues(:,whiskerNum); centroidY=centroidValues(:,whiskerNum+1);
-        %   rebase to whisker referential (mid-point termined from maxima)
-        centroidX=centroidX-mean([min(centroidX) max(centroidX)]);
-        centroidY=centroidY-mean([min(centroidY) max(centroidY)]);
+        %   rebase to whisker referential 
+        if exist('baseValues','var')% use average base values
+            refXVals=nanmean(baseValues(:,whiskerNum));
+            refYVals=nanmean(baseValues(:,whiskerNum+1));
+        else    % (mid-point determined from maxima)
+            refXVals=mean([min(centroidX) max(centroidX)]);
+            refYVals=mean([min(centroidY) max(centroidY)]);
+        end
+        centroidX=centroidX-refXVals;
+        centroidY=centroidY-refYVals;
         centroidY=centroidY-min(centroidY);
         %   convert to radian
         centroidX=centroidX/max(abs(centroidX))*pi/2;
@@ -30,14 +42,15 @@ elseif nargin==1 && min(size(varargin{1}))>1 % more than 1 whisker centroid valu
     end
 end
 
+% find and replace outliers
+thetas = filloutliers(thetas','spline','movmedian',20)';
+
 %% smooth values
 for whiskerNum=1:size(thetas,1)
     % find outliers
-    outliers=abs(thetas(whiskerNum,:))>30*mad(abs(thetas(whiskerNum,:)));
-    % could use filloutliers
-    thetas(whiskerNum,outliers)=nan;
-    
-    % plots
+%     outliers=abs(thetas(whiskerNum,:))>30*mad(abs(thetas(whiskerNum,:)));
+%     thetas(whiskerNum,outliers)=nan;
+        % plots
     % figure; hold on; plot(thetas(whiskerNum,:))
     % plot(outliers,zeros(numel(outliers,1)),'rd')
     

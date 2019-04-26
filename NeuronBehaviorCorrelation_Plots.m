@@ -28,6 +28,10 @@ longestWhiskingPeriodIdx=whiskingPeriodIdxInfo.PixelIdxList{...
 %% whisking vs spikes plot
 NBC_Plots_SpikesWhisking(behav.BP_periodBehavData_ms,behav.whiskingPhase_ms,buSpikeRasters_ms);
 
+%% 
+NBC_Plots_WhiskingPhaseVideoFrame(behav.periodBehavData_ms,behav.vidTimes_ms,...
+    behav.whiskingPhase_ms,buSpikeRasters_ms,buSDFs_ms);
+
 %% overlay whisking and spikes on video 
 NBC_Plots_SpikesWhiskingOverlayOnVideo(behav.periodBehavData_ms,behav.vidTimes_ms,...
     buSpikeRasters_ms,buSDFs_ms); %cursor_1,cursor_2

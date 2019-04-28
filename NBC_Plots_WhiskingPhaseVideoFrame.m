@@ -35,7 +35,7 @@ vidStruc = struct('cdata',zeros(vidHeight,vidWidth,3,'uint8'),...
 if exist('cursor_1','var')
     timePoint=cursor_1.DataIndex;
 else
-    timePoint=1287; % x axis is in ms already
+    timePoint=25000; % x axis is in ms already
 end
 % timePoint=vidTimes_ms(timePoint); %video time in ms
 % vidObj.FrameRate is by default 25. Convert to artificial time
@@ -45,7 +45,7 @@ msTP=floor((timePoint - minTP*60000 - secTP*1000));
 vidObj.CurrentTime = (minTP*60)+secTP+msTP*10^-3; %13:34
 % Read one frame at a time using readFrame until the end of 3 sec epoch.
 % Append data from each video frame to the structure array.
-clipDuration=44/10^3*20;
+clipDuration=1000/10^3*20;
 % clipDuration=(cursor_2.DataIndex-cursor_1.DataIndex)/10^3*20;
 k = 1;
 while k<=(clipDuration*25)
@@ -64,52 +64,4 @@ set(gca,'units','pixels');
 set(gca,'position',[0 0 vidObj.Width vidObj.Height]);
 
 % Play the movie once at the video's frame rate
-movie(vidStruc,1,500);
-
-%  rescale
-periodBehavData_ms=(periodBehavData_ms-mean(periodBehavData_ms))/...
-    max(abs(periodBehavData_ms))*50+50;
-
-% PrV88_125_whiskers=LoadWhiskers('PrV88_125_HSCamClips2.whiskers');
-numFrame=size(vidTimes_ms,2);
-% M=nan()
-figure;    hold on
-for frameId = 74896:85079 %numFrame
-    
-    set video time
-    
-    hide axes
-    
-    s(frameId).cdata = readFrame(vidObj); %store image
-    %% plot image
-    image(flipud(s(frameId).cdata))
-    
-    %     fields=PrV88_125_whiskers([PrV88_125_whiskers.time]==frames(frameId));
-    %     for framePlots=1:size(fields,1)
-    %         plot(fields(framePlots).x,fields(framePlots).y);
-    %     end
-    % get time index
-    timeIndices=vidTimes_ms(max([1 frameId-25])):vidTimes_ms(min([numFrame frameId+25]));
-    timeIndices=int32(timeIndices(timeIndices>0));
-    %% plot angle
-    angleTrace=periodBehavData_ms(timeIndices);
-    if frameId-25<=1
-        angleTrace= [nan(1,101-numel(angleTrace)), angleTrace];
-    elseif frameId+25>numFrame
-        angleTrace= [angleTrace, nan(1,101-numel(angleTrace))];
-    end
-    timeAxis=int32(linspace(1,5*numel(angleTrace),numel(angleTrace)));
-    plot(timeAxis,angleTrace,'k')
-    
-    axis([1 640 1 480])
-    M(frameId) = getframe;
-    cla;
-end
-figure
-movie(M,1) %play 5 times;
-
-%create video
-v = VideoWriter('PrV88_125_whiskers_onvideo_171frames.avi');
-open(v);
-writeVideo(v, M);
-close(v);
+movie(vidStruc,1,50);

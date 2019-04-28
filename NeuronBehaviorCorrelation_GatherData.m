@@ -267,46 +267,20 @@ else % need to cut behavior trace
     %     videoReIndex=...
     %     whiskerTrackingData=...
 end
-
-%% Find best units
-spikes.unitID=double(spikes.unitID);
-spikes.times=double(spikes.times);
-% find most frequent units
-[unitFreq,uniqueUnitIDs]=hist(spikes.unitID,unique(spikes.unitID));
-[unitFreq,freqIdx]=sort(unitFreq','descend');
-unitFreq=unitFreq./sum(unitFreq)*100; uniqueUnitIDs=uniqueUnitIDs(freqIdx);
-bestUnitsIdx=find(unitFreq>0.1);
-bestUnits=uniqueUnitIDs(bestUnitsIdx); bestUnits=sort(bestUnits(bestUnits~=0));
-if isfield(spikes,'preferredElectrode')
-    try
-        titularChannels = unique(spikes.preferredElectrode(ismember(spikes.unitID,bestUnits)));
-    catch
-        titularChannels =find(~cellfun('isempty',spikes.preferredElectrode));
-    end
+% Adjust behavior array if necessary
+if numel(whiskerTrackingData(1,:))~=numel(vidTimes)
+    whiskerTrackingData=whiskerTrackingData(:,1:numel(vidTimes)); %but check why that is
 end
-% keepUnits=[1 2 3];
-% titularChannels=[10 10 10];
-% keepTraces=titularChannels; %14; %[10 14 15];% keepTraces=1:16; %[10 14 15];
-keepTraces=1:size(allTraces,1);
 
-%% Keep selected recording trace and spike times,
-recordingTraces=allTraces(keepTraces,:); %select the trace to keep
-try
-    keepUnitsIdx=ismember(spikes.preferredElectrode,keepTraces);
-    unitID=spikes.unitID(keepUnitsIdx);
-    preferredElectrode=spikes.preferredElectrode(keepUnitsIdx);
-    try
-        waveForms=spikes.waveforms(keepUnitsIdx,:);
-    catch
-        waveForms=[];
-    end
-    spikeTimes=spikes.times(keepUnitsIdx);
-catch
-    unitID=spikes.unitID;
-    spikeTimes=spikes.times;
-    waveForms=spikes.waveforms;
-    preferredElectrode=spikes.preferredElectrode;
-end
+% periodBehavData=[whiskerTrackingData',vidTimes'];
+% periodBehavData=[whiskerTrackingData(videoFrameTimes.TTLFrames(1):...
+%                   size(videoFrameTimes.frameTime_ms,1)),... %Trace
+%     videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(1):end)-...
+%     videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(1))+1]; % Time points
+% figure; hold on
+% plot(periodBehavData(:,2),periodBehavData(:,1))
+
+
 % keepUnits=unique(unitID);
 % recordingTrace=cell(length(keepTraces),1);
 % for traceNum=1:length(keepTraces)
@@ -347,148 +321,26 @@ end
 % [C,phi,S12,S1,S2,f]=coherencyc(foo',double(allTraces(channelNum,:))',params);
 % figure; subplot(311); plot(f,C);subplot(312); plot(f,10*log10(S1));subplot(313); plot(f,10*log10(S2))
 
-%% Downsample trace to 1ms (pointless, as it will loose the spikes)
-% Fs=1000;
-% % foo=resample(double(recordingTrace),Fs,double(samplingRate));
-% dsrecordingTrace=decimate(double(recordingTrace),double(samplingRate)/Fs,'fir');
 
-%% Bin spike counts in 1ms bins
-% with Chronux' binning function
-% foo=binspikes(spikeTimes/double(samplingRate),Fs);
-% foo=[zeros(round(spikeTimes(1)/double(samplingRate)*Fs)-1,1);foo]; %need to padd with zeroes
-% With home-made function. Same result, but takes care of the padding
-binSize=1;
-spikeRasters_ms=zeros(numel(bestUnits),ceil(size(recordingTraces,2)/samplingRate*1000));
-for clusterNum=1:length(bestUnits)
-    unitIdx=unitID==bestUnits(clusterNum);
-    lengthUnitTimeArray=ceil(spikeTimes(find(unitIdx,1,'last'))/samplingRate*1000);
-    spikeRasters_ms(clusterNum,1:lengthUnitTimeArray)=DownSampleToMilliseconds(...
-        spikeTimes(unitIdx),binSize,samplingRate);
-end
 
-% figure; hold on
-% % plot(dsrecordingTrace)
-% plot(find(binSpikeTimes),ones(length(find(binSpikeTimes)),1)*-250,'r*')
-% plot(find(foo),ones(length(find(foo)),1)*-200,'g*')
-
-%% Compute sdfs
-SDFs_ms=nan(length(bestUnits), ceil(size(recordingTraces,2)/samplingRate*1000));
-for clusterNum=1:length(bestUnits)
-    SDFs_ms(clusterNum,:)=GaussConv(spikeRasters_ms(clusterNum,:),5)*1000;
-end
-% figure; hold on
-% plot(SDFs{1})
-% plot(find(binSpikeTimes{1}),ones(length(find(binSpikeTimes{1})),1)*-10,'r*')
-
-%% Compute raster indices
-[rasterYInd_ms, rasterXInd_ms]=deal(cell(length(bestUnits),1));
-for clusterNum=1:length(bestUnits)
-    [rasterYInd_ms{clusterNum}, rasterXInd_ms{clusterNum}] =...
-        ind2sub(size(spikeRasters_ms(clusterNum,:)),find(spikeRasters_ms(clusterNum,:))); %find row and column coordinates of spikes
-end
-% rasters=[indx indy;indx indy+1];
-
-%% Create array with angle values and time points
-if numel(whiskerTrackingData(1,:))~=numel(vidTimes)
-    whiskerTrackingData=whiskerTrackingData(:,1:numel(vidTimes)); %but check why that is
-end
-% periodBehavData=[whiskerTrackingData',vidTimes'];
-% periodBehavData=[whiskerTrackingData(videoFrameTimes.TTLFrames(1):...
-%                   size(videoFrameTimes.frameTime_ms,1)),... %Trace
-%     videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(1):end)-...
-%     videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(1))+1]; % Time points
-% figure; hold on
-% plot(periodBehavData(:,2),periodBehavData(:,1))
-
-%resample to 1ms precision
-vidTimes_ms=vidTimes/samplingRate*1000;
-% [periodBehavData(:,1),periodBehavData(:,2)] = resample(periodBehavData(:,1),periodBehavData(:,2),'pchip');
-for whiskerTraceNum=1:size(whiskerTrackingData,1)
-    periodBehavData_ms(whiskerTraceNum,:)=interp1(vidTimes_ms,whiskerTrackingData(whiskerTraceNum,:),...
-        vidTimes_ms(1):vidTimes_ms(end));
-    % figure; plot(periodBehavData_ms(whiskerTraceNum,:));
-    
-    %% Plot behavior data and find a period with whisking bouts
-    % no need to keep periods with no whisking
-    % figure; plot(periodBehavData); % select data point and export cursor info
-    % whiskingPeriod=1:cursor_info.Position(1); %in ms
-    peakWhisking_ms(whiskerTraceNum,:)=diff(cummax(abs(diff(periodBehavData_ms(whiskerTraceNum,:)))));
-    % peakWhiskingIdx=find(peakWhisking_ms==max(peakWhisking_ms));
-    % whiskingPeriod=peakWhiskingIdx-5000:peakWhiskingIdx+4999; %in ms
-    
-    %% Filter periodic behavior traces into low-pass and bandpassed versions
-    LP_periodBehavData_ms(whiskerTraceNum,:)=...
-        FilterTrace(periodBehavData_ms(whiskerTraceNum,:),1000,0.3,'low'); %set-point
-    % figure; hold on
-    % plot(periodBehavData_ms(whiskerTraceNum,:)); plot(LP_periodBehavData_ms(whiskerTraceNum,:),'LineWidth',2)
-    
-    BP_periodBehavData_ms(whiskerTraceNum,:)=...
-        FilterTrace(periodBehavData_ms(whiskerTraceNum,:),1000,[0.3 20],'bandpass'); %whisking
-    % figure; hold on %plot(foo) % plot(periodBehavData_ms(whiskerTraceNum,:))
-    % plot(periodBehavData_ms(whiskerTraceNum,:)-mean(periodBehavData_ms(whiskerTraceNum,:))); plot(BP_periodBehavData_ms(whiskerTraceNum,:),'LineWidth',1)
-    
-    HP_periodBehavData_ms(whiskerTraceNum,:)=...
-        FilterTrace(periodBehavData_ms(whiskerTraceNum,:),1000,0.3,'high')'; %whisking
-    % plot(HP_periodBehavData_ms(whiskerTraceNum,:),'LineWidth',1)
-    
-    % make sure behavior and spike traces have same length
-    if size(SDFs_ms,2)~=numel(periodBehavData_ms(whiskerTraceNum,:))
-        % check what
-    end
-    
-    if exist('whiskingPeriod','var')
-        %     sdf=sdf(whiskingPeriod);
-        %     LP_periodBehavData=LP_periodBehavData(whiskingPeriod);
-        %     BP_periodBehavData=BP_periodBehavData(whiskingPeriod);
-    end
-    
-    % figure; hold on
-    % plot(SDFs{1}); plot(BP_periodBehavData/min(BP_periodBehavData)*...
-    %     max(SDFs{1}) + max(SDFs{1}))
-    
-    %% Hilbert transform
-    % Hilbert transform NEEDS ANGLE TO BE ZERO CENTERED !!!
-    % periodicSignal=smoothdata(BP_periodBehavData_ms(whiskerTraceNum,:),'robustfit');
-    % -mean(BP_periodBehavData_ms(whiskerTraceNum,:));
-    % baseSignal=FilterTrace(periodicSignal,1000,0.3,'low');
-    % baseSignal=LP_periodBehavData_ms(whiskerTraceNum,:)-mean(LP_periodBehavData_ms(whiskerTraceNum,:));
-    % figure; hold on; plot(periodicSignal);
-    % periodicSignal(abs(periodicSignal)<2*std(abs(periodicSignal)))=0;plot(baseSignal);
-    HTBP_periodBehavData_ms(whiskerTraceNum,:)=hilbert(BP_periodBehavData_ms(whiskerTraceNum,:));
-    % figure; plot(imag(HTBP_periodBehavData_ms(whiskerTraceNum,:)));
-    % foo=abs(imag(HTBP_periodBehavData_ms(whiskerTraceNum,:)))<mad((imag(HTBP_periodBehavData_ms(whiskerTraceNum,:))));
-    % bla=imag(HTBP_periodBehavData_ms(whiskerTraceNum,:)); bla(foo)=0; plot(bla)
-    % plot(imag(HTBP_periodBehavData_ms(whiskerTraceNum,:)));
-    whiskingPhase_ms(whiskerTraceNum,:)=angle(HTBP_periodBehavData_ms(whiskerTraceNum,:));
-    % whiskingPhase_ms(foo)=0;
-    % plot(whiskingPhase_ms)
-    % figure; hold on
-    % plot(SDFs); plot(whiskingPhase*10 + max(SDFs))
-    
-    %% Find instantaneous frequency
-    Nfft = 1024;
-    % [Pxx,f] = pwelch(BP_periodBehavData,gausswin(Nfft),Nfft/2,Nfft,1000);
-    % figure; plot(f,Pxx); ylabel('PSD'); xlabel('Frequency (Hz)'); grid on;
-    [~,sgFreq(:,whiskerTraceNum),sgTime(whiskerTraceNum,:),sgPower(whiskerTraceNum,:,:)] =...
-        spectrogram(BP_periodBehavData_ms(whiskerTraceNum,:),gausswin(Nfft),Nfft/2,Nfft,1);
-    instantFreq_ms(whiskerTraceNum,:) = medfreq(squeeze(sgPower(whiskerTraceNum,:,:)),sgFreq(:,whiskerTraceNum));
-    % figure; plot(sgTime(whiskerTraceNum,:),round(instantFreq(whiskerTraceNum,:)*1000),'linewidth',2)
-end
 %%%%%%%%%%%%%%%%%%%%%%%
 %% group data in structure
-ephys=struct('recordingTraces',recordingTraces,'spikeRasters_ms',spikeRasters_ms,...
-...%     'rasterInd_ms',{rasterXInd_ms,rasterYInd_ms},...
-    'samplingRate',samplingRate,'SDFs_ms',SDFs_ms,'spikeTimes',spikeTimes,...
-    'waveForms',waveForms,'unitID',unitID,'preferredElectrode',preferredElectrode,...
-    'bestUnits',bestUnits,'recName',recName);
+ephys=struct('traces',allTraces,'spikes',spikes,...
+    'samplingRate',samplingRate,'recName',recName);
+% 'spikeRasters_ms',spikeRasters_ms,...
+%     'rasterInd_ms',{rasterXInd_ms,rasterYInd_ms},...
+%     ,'SDFs_ms',SDFs_ms,'spikeTimes',spikeTimes,...
+%     'waveForms',waveForms,'unitID',unitID,'preferredElectrode',preferredElectrode,...
+%     'bestUnits',bestUnits,);
 
-behav=struct('BP_periodBehavData_ms',BP_periodBehavData_ms,'HP_periodBehavData_ms',...
-    HP_periodBehavData_ms,'LP_periodBehavData_ms',LP_periodBehavData_ms,...
-    'HTBP_periodBehavData_ms',HTBP_periodBehavData_ms,'peakWhisking_ms',peakWhisking_ms,...
-    'periodBehavData_ms',periodBehavData_ms,'whiskingPhase_ms',whiskingPhase_ms,...
-    'instantFreq_ms',instantFreq_ms,'sgFreq',sgFreq,'sgTime',sgTime,'sgPower',...
-    sgPower,'vidTimes_ms',vidTimes_ms);
-
+behav=struct('whiskerTrackingData',whiskerTrackingData,'vidTimes',vidTimes);
+% 'BP_periodBehavData_ms',BP_periodBehavData_ms,'HP_periodBehavData_ms',...
+%     HP_periodBehavData_ms,'LP_periodBehavData_ms',LP_periodBehavData_ms,...
+%     'HTBP_periodBehavData_ms',HTBP_periodBehavData_ms,'peakWhisking_ms',peakWhisking_ms,...
+%     'periodBehavData_ms',periodBehavData_ms,'whiskingPhase_ms',whiskingPhase_ms,...
+%     'instantFreq_ms',instantFreq_ms,'sgFreq',sgFreq,'sgTime',sgTime,'sgPower',...
+%     sgPower,);
+% 
 cd(startingDir);
 
 

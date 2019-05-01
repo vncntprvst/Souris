@@ -236,7 +236,7 @@ if filterTraces == true
 end
 
 %% Sync ephys and behavior (video)
-% convert video frame times to native recording frame rate (typically 30kHz) if needed
+% convert video frame times to native ephys recording frame rate (typically 30kHz) if needed
 % first remove recording start clock time
 vidTimes=vFrameTimes(1,vFrameTimes(2,:)<0)-double(startTime); %when using Paul's OE Basler module
 

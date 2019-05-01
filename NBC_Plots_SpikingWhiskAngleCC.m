@@ -1,0 +1,53 @@
+function NBC_Plots_SpikingWhiskAngleCC(periodBehavData_ms,whiskingPhase_ms,...
+    whiskingPeriodIdx,spikeRasters_ms,saveFig)
+
+% only consider time periods when whisking occurs angle and phase
+timeVector=1:numel(periodBehavData_ms(1,:)); timeVector(~whiskingPeriodIdx)=NaN;
+% plot(timeVector,periodBehavData_ms-median(periodBehavData_ms))
+oscillationPattern=cos(whiskingPhase_ms(1,:));
+% cross correlation
+SpikeWAngleCorrFigure=figure('position',[969    49   944   948],'name',ephys.recName);
+for unitNum=1:size(SDFs_ms,1) %find(keepUnits==15); %bestUnit=2; %4;
+    unitSDF=SDFs_ms(unitNum,:); % unitSpikes=spikeRasters_ms(unitNum,:);
+    [acor,lag] = xcorr(unitSDF(whiskingPeriodIdx),...
+        oscillationPattern(whiskingPeriodIdx),150,'coeff');
+    figure(SpikeWAngleCorrFigure)
+    subplot(ceil(size(spikeRasters_ms,1)/4),4,unitNum);
+    ccph=plot(lag,acor,'color','k','LineWidth',2);set(gca,'ylim',[-0.4 0.4]); %xlabel('Lag (ms)')
+%     title({['Cross correlation for vIRt unit ' num2str(keepUnits(unitNum))];...
+%         'Spike density function vs. Whisking angle'});
+    %retraction unit if it shoots up around 0, protraction if before
+    if abs(acor(50:150))>0.2
+        ccph.Color='r'; %cmap(keepUnits(unitNum),:);
+        burstyWRCell=true;
+    else
+        burstyWRCell=false;
+    end
+    if burstyWRCell
+%         % plot spike times, angle and phase
+%         figure; hold on
+%         plot(timeVector,BP_periodBehavData_ms(1,:)); %-median(BP_periodBehavData_ms));
+%         plot(timeVector,whiskingPhase_ms(1,:))
+%         % for unitNum=1:size(spikeRasters_ms,1) %find(keepUnits==15)
+%         unitSpikes=spikeRasters_ms(unitNum,:);
+%         %     unitSpikesExcerpt=unitSpikes(whiskingPeriod);
+%         unitSpikes(isnan(timeVector) | unitSpikes==0)=nan;
+% %         unitSpikes(unitSpikes==1)=unitNum;
+%         plot(timeVector,unitSpikes,'d')
+%         set(gca, 'xlim', [longestWhiskingPeriodIdx(1),longestWhiskingPeriodIdx(end)])
+%         if isempty(phaseTuning)
+%             tuningLabel='none';
+%         else
+%            tuningLabel= num2str(phaseTuning);
+%         end
+%         title([ephys.recName ' unit ' num2str(keepUnits(unitNum))  ' Tuning ' tuningLabel],'interpreter','latex')
+%         savefig(gcf,[ephys.recName '_BurstUnit' keepUnits(unitNum) '.fig'])
+%         saveas(gcf,[ephys.recName '_BurstUnit' keepUnits(unitNum) '.png'])
+%         close(gcf);
+    end
+end
+if saveFig
+    savefig(SpikeWAngleCorrFigure,[ephys.recName '_SpikeWAngleCorr.fig'])
+    saveas(SpikeWAngleCorrFigure,[ephys.recName '_SpikeWAngleCorr.png'])
+end
+

@@ -56,30 +56,49 @@ plot(whiskerTraces_whiskFreq_ms(1,:))
 plot(whiskingPhase_ms(1,:))
 plot(whiskerTraces_breathFreq_ms(1,:))
 
-%% Find whisking periods of at least 500ms
-% peakWhisking_ms=WhiskingAnalysisFunctions.FindWhiskingBouts(periodBehavData_ms(1,:));
-% peakWhiskingIdx=find(peakWhisking_ms(1,:)==max(peakWhisking_ms(1,:)));
-whiskingPeriodIdx=WhiskingAnalysisFunctions.FindWhiskingPeriods(...
-    whiskerTraces_whiskFreq_ms(1,:),whiskingPhase_ms(1,:),500);
+for unitNum=1:size(spikeRasters_ms,1)
+    for whiskNum=1:size(whiskerTraces_whiskFreq_ms,1)
+        %% Find whisking periods of at least 500ms
+        % peakWhisking_ms=WhiskingAnalysisFunctions.FindWhiskingBouts(periodBehavData_ms(1,:));
+        % peakWhiskingIdx=find(peakWhisking_ms(1,:)==max(peakWhisking_ms(1,:)));
+        [whiskingEpochsIdx,wAmplitude,setPoint]=WhiskingAnalysisFunctions.FindWhiskingEpochs(...
+            whiskerTraces_whiskFreq_ms(whiskNum,:),whiskingPhase_ms(whiskNum,:),500);
+        % plot(whiskingEpochsIdx*50)
+        whiskingEpochs=whiskingEpochsIdx;
+        %restrict to first 90s
+        % whiskingEpochs(90000:end)=0;
+        
+        %% agregate whsiker motion components
+        whiskerMotion=[whiskingPhase_ms(whiskNum,:)',wAmplitude',setPoint'];
+        %% Coherence
+        % we want the coherence at the peak frequency
+        params.Fs=1000; % sampling frequency
+        params.fpass=10; % band of frequencies to be kept
+        params.tapers=[2 3]; % taper parameters (corresponds to  % time-bandwidth product of 2: NW=2 [NW 2*NW-1]
+        params.pad=1; % pad factor for fft
+        params.err=[2 0.05];
+        params.trialave=0;
+        global CHRONUXGPU
+        CHRONUXGPU = 1;
+        [Coherence,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpb(...
+            whiskerMotion(whiskingEpochs,:),repmat(spikeRasters_ms(unitNum,whiskingEpochs)',1,3),params);
+        allCoherence{unitNum}(:,whiskNum)=Coherence;
+    end
+    allCoherence{unitNum}
+    if logical(sum(allCoherence{unitNum}(1,:)>0.8))
+        bestWhisker=allCoherence{unitNum}(1,:)==max(allCoherence{unitNum}(1,:));
+        NBC_Plots_PhaseTuning(whiskingPhase_ms(bestWhisker,:),whiskingEpochs,...
+            spikeRasters_ms(unitNum,:),false,['Unit ' str2double(unitNum) ephys.recName(1:end-19)])
+        NBC_Plots_SpikingWhiskAngleCC(periodBehavData_ms(bestWhisker,:),whiskingPhase_ms(bestWhisker,:),...
+            whiskingEpochs,spikeRasters_ms(unitNum,:),SDFs_ms(unitNum,:),false,ephys.recName)
+    end
+end
 
-whiskingEpochs=whiskingPeriodIdx;
-%restrict to first 90s
-whiskingEpochs(90000:end)=0;
-
-%% Coherence
-fmax=25 ; % [Hz] maximal frequency in spectrum computations
-NW=25 ;                     % time-bandwidth product (for coherence calculation)
-params.tapers = [NW 2*NW-1] ;
-params.Fs = 1/1000 ;
-params.fpass=[0 fmax] ;
-params.pad = 4 ;
-params.err= [2 0.05] ;      % confidence interval
-params.trialave = 0 ;
-
-% using chronux routines to compute coherence
-[Coherence_,phi_sta,~,~,~,freq,confC,~,~] = coherencyc(spikeRasters_ms(1,:)-mean(spikeRasters_ms(1,:)),...
-    whiskingPhase_ms(1,:)-mean(whiskingPhase_ms(1,:)),params) ;
-
+figure;
+subplot(3,1,1); plot(sgFreq,Coherence);
+subplot(3,1,2); plot(sgFreq,10*log10(S1));
+subplot(3,1,3); plot(sgFreq,10*log10(S2))
+Coherence(S1==max(S1))
 
 %% whisking vs spikes plot
 NBC_Plots_SpikesWhisking(whiskerTraces_whiskFreq_ms,whiskingPhase_ms,spikeRasters_ms);
@@ -97,7 +116,7 @@ NBC_Plots_PhaseTuning(whiskingPhase_ms,whiskingEpochs,spikeRasters_ms,false,ephy
 
 %% Is WR bursting reliable? - Plot spike times with whisking angle
 NBC_Plots_SpikingWhiskAngleCC(periodBehavData_ms,whiskingPhase_ms,...
-    whiskingPeriodIdx,spikeRasters_ms,SDFs_ms,false,ephys.recName)
+    whiskingEpochsIdx,spikeRasters_ms,SDFs_ms,false,ephys.recName)
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -163,22 +182,22 @@ params.err=[2 0.05];
 params.trialave=0;
 
 for clusterNum=1:length(displayUnits)
-    [C,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpt(BP_periodBehavData',...
+    [Coherence,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpt(BP_periodBehavData',...
         spikeTimes{displayUnits(clusterNum)}/double(spikeData.samplingRate),params);
-    figure; subplot(311); plot(sgFreq,C);subplot(312); plot(sgFreq,10*log10(S1));subplot(313); plot(sgFreq,10*log10(S2))
-    C(S1==max(S1))
+    figure; subplot(311); plot(sgFreq,Coherence);subplot(312); plot(sgFreq,10*log10(S1));subplot(313); plot(sgFreq,10*log10(S2))
+    Coherence(S1==max(S1))
 end
 for clusterNum=1:length(displayUnits)
-    [C,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpb(BP_periodBehavData',...
+    [Coherence,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpb(BP_periodBehavData',...
         SDFs{displayUnits(clusterNum)}',params);
-    figure; subplot(311); plot(sgFreq,C);subplot(312); plot(sgFreq,10*log10(S1));subplot(313); plot(sgFreq,10*log10(S2))
-    C(S1==max(S1))
+    figure; subplot(311); plot(sgFreq,Coherence);subplot(312); plot(sgFreq,10*log10(S1));subplot(313); plot(sgFreq,10*log10(S2))
+    Coherence(S1==max(S1))
 end
 for clusterNum=1:length(displayUnits)
-    [C,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpb(whiskingPhase',...
+    [Coherence,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpb(whiskingPhase',...
         SDFs{displayUnits(clusterNum)}',params);
-    figure; subplot(311); plot(sgFreq,C);subplot(312); plot(sgFreq,10*log10(S1));subplot(313); plot(sgFreq,10*log10(S2))
-    C(S1==max(S1))
+    figure; subplot(311); plot(sgFreq,Coherence);subplot(312); plot(sgFreq,10*log10(S1));subplot(313); plot(sgFreq,10*log10(S2))
+    Coherence(S1==max(S1))
 end
 
 

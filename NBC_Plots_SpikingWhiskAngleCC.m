@@ -8,13 +8,15 @@ timeVector=1:numel(periodBehavData(1,:)); timeVector(~whiskingPeriodIdx)=NaN;
 % plot(timeVector,periodBehavData_ms-median(periodBehavData_ms))
 oscillationPattern=cos(whiskingPhase(1,:));
 % cross correlation
-SpikeWAngleCorrFigure=figure('position',[969    49   944   948],'name',recName);
+SpikeWAngleCorrFigure=figure('name',recName); %'position',[969    49   944   948]
 for unitNum=1:size(SDFs,1) %find(keepUnits==15); %bestUnit=2; %4;
     unitSDF=SDFs(unitNum,:); % unitSpikes=spikeRasters_ms(unitNum,:);
     [acor,lag] = xcorr(unitSDF(whiskingPeriodIdx),...
         oscillationPattern(whiskingPeriodIdx),150,'coeff');
     figure(SpikeWAngleCorrFigure)
-    subplot(ceil(size(spikeRasters,1)/4),4,unitNum);
+    if size(spikeRasters,1)/4 > 1
+        subplot(ceil(size(spikeRasters,1)/4),4,unitNum);
+    end
     ccph=plot(lag,acor,'color','k','LineWidth',2);set(gca,'ylim',[-0.4 0.4]); %xlabel('Lag (ms)')
 %     title({['Cross correlation for vIRt unit ' num2str(keepUnits(unitNum))];...
 %         'Spike density function vs. Whisking angle'});

@@ -2,13 +2,10 @@ function NBC_Plots_PhaseTuning(whiskingPhase_ms,whiskingPeriod,spikeRasters_ms,s
 % Polar plots of the spectral coherence between spiking activity and vibrissa motion 
 % at the peak frequency of whisking;
 
-
-
-
 if nargin<5
     recName='PhaseTuning_polarPlot';
 end
-phaseTuningSummaryFig=figure('position',[969    49   944   948],'name',recName);
+phaseTuningSummaryFig=figure('name',recName); %'position',[969    49   944   948],
 colormapSeed=lines;
 cmap=[colormapSeed(1:7,:);(colormapSeed+flipud(colormap(copper)))/2;autumn];
 
@@ -21,7 +18,9 @@ for unitNum=1:size(spikeRasters_ms,1)
     spikeOnWPhase=whiskingPhaseWP_ms(logical(unitSpikesWP));
     spikeOnWPhase=spikeOnWPhase+pi;
     %     figure;
-    subplot(ceil(size(spikeRasters_ms,1)/4),4,unitNum)
+    if size(spikeRasters_ms,1)>1
+        subplot(ceil(size(spikeRasters_ms,1)/4),4,unitNum)
+    end
     pph=polarhistogram(spikeOnWPhase,20,'Displaystyle','stairs',...
         'Normalization','count','LineWidth',2);
     %mean angle value

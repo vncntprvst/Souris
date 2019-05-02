@@ -73,8 +73,10 @@ recName=spikeSortingFiles(spikeFileNum).name;
 cd(recDir)
 %also get some info about the recording if possible
 % e.g., load rec_info from the spike file:
-load(spikeSortingFiles(spikeFileNum).name,'rec_info')
-if ~exist('rec_info','var')
+if logical(sum(cellfun(@(x) contains(x,'rec_info'),...
+        who(matfile(spikeSortingFiles(spikeFileNum).name)))))
+    load(spikeSortingFiles(spikeFileNum).name,'rec_info')
+elseif ~exist('rec_info','var') && exist([dataFiles(spikeFileNum).name(1:end-10) 'recInfo.mat'],'file')
     load([dataFiles(spikeFileNum).name(1:end-10) 'recInfo']);
 else
     recInfo=rec_info; clear rec_info;
@@ -159,9 +161,10 @@ else % csv file from Bonsai
 end
 
 %% Import whisker tracking data (aka "thetas")
-isWTData=cellfun(@(x) contains(x,'whiskerTrackingData'), {whiskerTrackingFiles.name});
+startDirFiles=dir(startingDir);
+isWTData=cellfun(@(x) contains(x,'whiskerTrackingData'), {startDirFiles.name});
 if sum(isWTData)
-    load(fullfile(whiskerTrackingFiles(isWTData).folder,whiskerTrackingFiles(isWTData).name));
+    load(fullfile(startDirFiles(isWTData).folder,startDirFiles(isWTData).name));
 else
     % variable frame rate typically ~500Hz
     whiskerTrackDir=whiskerTrackingFiles(1).folder;
@@ -267,9 +270,17 @@ else % need to cut behavior trace
     %     videoReIndex=...
     %     whiskerTrackingData=...
 end
+
+% figure; hold on
+% plot(vidTimes-vidTimes(1),whiskerTrackingData(1,:)-mean(whiskerTrackingData(1,:)));
+% bestUnitTimes=spikes.times(spikes.unitID==4);
+% plot(bestUnitTimes-vidTimes(1),zeros(numel(bestUnitTimes),1),'dk')
+% 
+
 % Adjust behavior array if necessary
 if numel(whiskerTrackingData(1,:))~=numel(vidTimes)
-    whiskerTrackingData=whiskerTrackingData(:,1:numel(vidTimes)); %but check why that is
+    vidTimes=linspace(1,double(vidTimes(end)+1),size(whiskerTrackingData,2));
+%     whiskerTrackingData=whiskerTrackingData(:,1:numel(vidTimes)); %but check why that is
 end
 
 % periodBehavData=[whiskerTrackingData',vidTimes'];
@@ -333,7 +344,8 @@ ephys=struct('traces',allTraces,'spikes',spikes,...
 %     'waveForms',waveForms,'unitID',unitID,'preferredElectrode',preferredElectrode,...
 %     'bestUnits',bestUnits,);
 
-behav=struct('whiskerTrackingData',whiskerTrackingData,'vidTimes',vidTimes);
+behav=struct('whiskerTrackingData',whiskerTrackingData,'vidTimes',vidTimes,...
+    'vFrameTimes',vFrameTimes,'startTime',startTime);
 % 'BP_periodBehavData_ms',BP_periodBehavData_ms,'HP_periodBehavData_ms',...
 %     HP_periodBehavData_ms,'LP_periodBehavData_ms',LP_periodBehavData_ms,...
 %     'HTBP_periodBehavData_ms',HTBP_periodBehavData_ms,'peakWhisking_ms',peakWhisking_ms,...

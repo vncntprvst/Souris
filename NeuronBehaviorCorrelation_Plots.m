@@ -10,6 +10,11 @@ else
     save('processedData','ephys','behav','-v7.3');
 end
 
+% figure; hold on
+% plot(behav.vidTimes,behav.whiskerTrackingData(1,:)-mean(behav.whiskerTrackingData(1,:)));
+% bestUnitTimes=ephys.spikes.times(ephys.spikes.unitID==4);
+% plot(bestUnitTimes,zeros(numel(bestUnitTimes),1),'dk')
+
 bestUnits=EphysFunctions.FindBestUnits(ephys.spikes.unitID);
 [spikeRasters_ms,unitList]=EphysFunctions.MakeRasters(ephys.spikes.times,ephys.spikes.unitID,...
     ephys.samplingRate,int32(size(ephys.traces,2)/ephys.samplingRate*1000));
@@ -20,8 +25,8 @@ keepTraces=unique(ephys.spikes.preferredElectrode(ismember(ephys.spikes.unitID,u
 SDFs_ms=EphysFunctions.MakeSDF(spikeRasters_ms);
 spikeRasters_ms=spikeRasters_ms(keepUnits,:);
 SDFs_ms=SDFs_ms(keepUnits,:);
-% for whisking data resampling, use ephys sampling rate, if videao times are 
-% based on TTLs 
+% for whisking data resampling, use ephys sampling rate, if videao times are
+% based on TTLs
 periodBehavData_ms=WhiskingAnalysisFunctions.ResampleBehavData...
     (behav.whiskerTrackingData,behav.vidTimes,ephys.samplingRate);
 % make sure behavior and spike traces have same length
@@ -35,44 +40,64 @@ if size(SDFs_ms,2)~=size(periodBehavData_ms,2)
     end
 end
 %% filtered whisking traces
-BP_periodBehavData_ms=WhiskingAnalysisFunctions.BandPassBehavData(periodBehavData_ms);
+whiskerTraces_whiskFreq_ms=WhiskingAnalysisFunctions.BandPassBehavData(periodBehavData_ms,1000,[4 20]);
+whiskerTraces_breathFreq_ms=WhiskingAnalysisFunctions.BandPassBehavData(periodBehavData_ms,1000,[1 4]);
 % HP_periodBehavData_ms=WhiskingAnalysisFunctions.HighPassBehavData(periodBehavData_ms);
 % LP_periodBehavData_ms=WhiskingAnalysisFunctions.LowPassBehavData(periodBehavData_ms);
 
-%% Find whisking periods
+%% find phase
+whiskingPhase_ms=WhiskingAnalysisFunctions.ComputePhase(whiskerTraces_whiskFreq_ms); %,whiskingEpochs);
+
+figure; hold on
+plot(periodBehavData_ms(1,:))
+% plot(LP_periodBehavData_ms(1,:))
+plot(whiskerTraces_whiskFreq_ms(1,:))
+% plot(HP_periodBehavData_ms(1,:))
+plot(whiskingPhase_ms(1,:))
+plot(whiskerTraces_breathFreq_ms(1,:))
+
+%% Find whisking periods of at least 500ms
 % peakWhisking_ms=WhiskingAnalysisFunctions.FindWhiskingBouts(periodBehavData_ms(1,:));
 % peakWhiskingIdx=find(peakWhisking_ms(1,:)==max(peakWhisking_ms(1,:)));
-whiskingPeriodIdx=WhiskingAnalysisFunctions.FindWhiskingPeriods(BP_periodBehavData_ms);
-% whiskingPeriodIdxInfo=bwconncomp(whiskingPeriodIdx);
-% whiskingPeriodDuration=cellfun(@(x) numel(x),whiskingPeriodIdxInfo.PixelIdxList);
-% longestWhiskingPeriodIdx=whiskingPeriodIdxInfo.PixelIdxList{...
-%     whiskingPeriodDuration==max(whiskingPeriodDuration)};
-whiskingEpochs=whiskingPeriodIdx;
+whiskingPeriodIdx=WhiskingAnalysisFunctions.FindWhiskingPeriods(...
+    whiskerTraces_whiskFreq_ms(1,:),whiskingPhase_ms(1,:),500);
 
-whiskingPhase_ms=WhiskingAnalysisFunctions.ComputePhase(BP_periodBehavData_ms,whiskingEpochs);
-% figure; hold on 
-% plot(periodBehavData_ms(1,:))
-% % plot(LP_periodBehavData_ms(1,:))
-% plot(BP_periodBehavData_ms(1,:))
-% % plot(HP_periodBehavData_ms(1,:))
-% plot(whiskingPhase_ms(1,:))
+whiskingEpochs=whiskingPeriodIdx;
+%restrict to first 90s
+whiskingEpochs(90000:end)=0;
+
+%% Coherence
+fmax=25 ; % [Hz] maximal frequency in spectrum computations
+NW=25 ;                     % time-bandwidth product (for coherence calculation)
+params.tapers = [NW 2*NW-1] ;
+params.Fs = 1/1000 ;
+params.fpass=[0 fmax] ;
+params.pad = 4 ;
+params.err= [2 0.05] ;      % confidence interval
+params.trialave = 0 ;
+
+% using chronux routines to compute coherence
+[Coherence_,phi_sta,~,~,~,freq,confC,~,~] = coherencyc(spikeRasters_ms(1,:)-mean(spikeRasters_ms(1,:)),...
+    whiskingPhase_ms(1,:)-mean(whiskingPhase_ms(1,:)),params) ;
+
+
 %% whisking vs spikes plot
-NBC_Plots_SpikesWhisking(BP_periodBehavData_ms,whiskingPhase_ms,spikeRasters_ms);
+NBC_Plots_SpikesWhisking(whiskerTraces_whiskFreq_ms,whiskingPhase_ms,spikeRasters_ms);
 
 %% whisking snapshot figures
 NBC_Plots_WhiskingPhaseVideoFrame(periodBehavData_ms,vidTimes_ms,...
     whiskingPhase_ms,spikeRasters_ms,SDFs_ms);
 
-%% overlay whisking and spikes on video 
+%% overlay whisking and spikes on video
 NBC_Plots_SpikesWhiskingOverlayOnVideo(periodBehavData_ms,vidTimes_ms,...
     spikeRasters_ms,SDFs_ms); %cursor_1,cursor_2
 
-%% Is it tuned to Phase? - Polar plot summary 
+%% Is it tuned to Phase? - Polar plot summary
 NBC_Plots_PhaseTuning(whiskingPhase_ms,whiskingEpochs,spikeRasters_ms,false,ephys.recName)
 
 %% Is WR bursting reliable? - Plot spike times with whisking angle
 NBC_Plots_SpikingWhiskAngleCC(periodBehavData_ms,whiskingPhase_ms,...
-    whiskingPeriodIdx,spikeRasters_ms,false)
+    whiskingPeriodIdx,spikeRasters_ms,SDFs_ms,false,ephys.recName)
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%
@@ -105,7 +130,7 @@ for clusterNum=1:length(displayUnits)
 end
 for clusterNum=1:length(displayUnits)
     [acor,lag] = xcorr(SDFs{displayUnits(clusterNum)},periodBehavData,2500,'coeff');
-    figure('position',[602   537   560   420]); 
+    figure('position',[602   537   560   420]);
     plot(lag,acor); xlabel('Lag (ms)');set(gca,'ylim',[0 1]);
     title({['Cross correlation for unit' num2str(displayUnits(clusterNum))];'Spike density function vs. Whisking angle'})
 end
@@ -115,7 +140,7 @@ end
 % Make polar plot of the coherence between spiking activity and
 % vibrissa motion at the peak frequency of whisking.
 
-% The relationship between unit activities and the whisking or 
+% The relationship between unit activities and the whisking or
 % breathing rhythms was estimated by computing the spectral coherence
 % (Mitra and Pesaran, 1999). Single whisks or breaths were isolated by
 % band-pass filtering the position traces between 1 Hz and 25 Hz with
@@ -141,33 +166,33 @@ for clusterNum=1:length(displayUnits)
     [C,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpt(BP_periodBehavData',...
         spikeTimes{displayUnits(clusterNum)}/double(spikeData.samplingRate),params);
     figure; subplot(311); plot(sgFreq,C);subplot(312); plot(sgFreq,10*log10(S1));subplot(313); plot(sgFreq,10*log10(S2))
-C(S1==max(S1))
+    C(S1==max(S1))
 end
 for clusterNum=1:length(displayUnits)
     [C,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpb(BP_periodBehavData',...
         SDFs{displayUnits(clusterNum)}',params);
     figure; subplot(311); plot(sgFreq,C);subplot(312); plot(sgFreq,10*log10(S1));subplot(313); plot(sgFreq,10*log10(S2))
-C(S1==max(S1))
+    C(S1==max(S1))
 end
 for clusterNum=1:length(displayUnits)
     [C,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpb(whiskingPhase',...
         SDFs{displayUnits(clusterNum)}',params);
     figure; subplot(311); plot(sgFreq,C);subplot(312); plot(sgFreq,10*log10(S1));subplot(313); plot(sgFreq,10*log10(S2))
-C(S1==max(S1))
+    C(S1==max(S1))
 end
 
 
 
 %% mock up units to test code
 % mock up protraction unit
-    % fakeUnitSpikes=zeros(1,numel(periodBehavData_ms));
-    % fakeUnitSpikes([0 diff(BP_periodBehavData_ms)]>0 &...
-    % [0,0,diff(diff(BP_periodBehavData_ms))]<0 &...
-    % whiskingPhase_ms<0)=1;
+% fakeUnitSpikes=zeros(1,numel(periodBehavData_ms));
+% fakeUnitSpikes([0 diff(BP_periodBehavData_ms)]>0 &...
+% [0,0,diff(diff(BP_periodBehavData_ms))]<0 &...
+% whiskingPhase_ms<0)=1;
 % % mock up retraction unit
-    % fakeUnitSpikes=zeros(1,numel(periodBehavData_ms));
-    % fakeUnitSpikes([0 diff(BP_periodBehavData_ms)]<0 &...
-    % [0,0,diff(diff(BP_periodBehavData_ms))]>0 &...
-    % whiskingPhase_ms>0)=1;
+% fakeUnitSpikes=zeros(1,numel(periodBehavData_ms));
+% fakeUnitSpikes([0 diff(BP_periodBehavData_ms)]<0 &...
+% [0,0,diff(diff(BP_periodBehavData_ms))]>0 &...
+% whiskingPhase_ms>0)=1;
 % unitSpikes=fakeUnitSpikes; unitSDF=GaussConv(unitSpikes,5)*1000;
 

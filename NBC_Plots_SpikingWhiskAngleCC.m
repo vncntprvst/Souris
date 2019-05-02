@@ -1,18 +1,20 @@
-function NBC_Plots_SpikingWhiskAngleCC(periodBehavData_ms,whiskingPhase_ms,...
-    whiskingPeriodIdx,spikeRasters_ms,saveFig)
-
+function NBC_Plots_SpikingWhiskAngleCC(periodBehavData,whiskingPhase,...
+    whiskingPeriodIdx,spikeRasters,SDFs,saveFig,recName)
+if nargin<6
+    recName='SpikingWhiskAngleCC';
+end
 % only consider time periods when whisking occurs angle and phase
-timeVector=1:numel(periodBehavData_ms(1,:)); timeVector(~whiskingPeriodIdx)=NaN;
+timeVector=1:numel(periodBehavData(1,:)); timeVector(~whiskingPeriodIdx)=NaN;
 % plot(timeVector,periodBehavData_ms-median(periodBehavData_ms))
-oscillationPattern=cos(whiskingPhase_ms(1,:));
+oscillationPattern=cos(whiskingPhase(1,:));
 % cross correlation
-SpikeWAngleCorrFigure=figure('position',[969    49   944   948],'name',ephys.recName);
-for unitNum=1:size(SDFs_ms,1) %find(keepUnits==15); %bestUnit=2; %4;
-    unitSDF=SDFs_ms(unitNum,:); % unitSpikes=spikeRasters_ms(unitNum,:);
+SpikeWAngleCorrFigure=figure('position',[969    49   944   948],'name',recName);
+for unitNum=1:size(SDFs,1) %find(keepUnits==15); %bestUnit=2; %4;
+    unitSDF=SDFs(unitNum,:); % unitSpikes=spikeRasters_ms(unitNum,:);
     [acor,lag] = xcorr(unitSDF(whiskingPeriodIdx),...
         oscillationPattern(whiskingPeriodIdx),150,'coeff');
     figure(SpikeWAngleCorrFigure)
-    subplot(ceil(size(spikeRasters_ms,1)/4),4,unitNum);
+    subplot(ceil(size(spikeRasters,1)/4),4,unitNum);
     ccph=plot(lag,acor,'color','k','LineWidth',2);set(gca,'ylim',[-0.4 0.4]); %xlabel('Lag (ms)')
 %     title({['Cross correlation for vIRt unit ' num2str(keepUnits(unitNum))];...
 %         'Spike density function vs. Whisking angle'});

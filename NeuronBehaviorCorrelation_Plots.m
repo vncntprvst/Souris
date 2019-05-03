@@ -1,5 +1,5 @@
 % NeuronBehaviorCorrelation_Plots
-
+clearvars;
 %% First, get data
 dirFiles=dir;
 processedData=cellfun(@(x) contains(x,'processedData'), {dirFiles.name});
@@ -48,50 +48,78 @@ whiskerTraces_breathFreq_ms=WhiskingAnalysisFunctions.BandPassBehavData(periodBe
 %% find phase
 whiskingPhase_ms=WhiskingAnalysisFunctions.ComputePhase(whiskerTraces_whiskFreq_ms); %,whiskingEpochs);
 
-figure; hold on
-plot(periodBehavData_ms(1,:))
-% plot(LP_periodBehavData_ms(1,:))
-plot(whiskerTraces_whiskFreq_ms(1,:))
-% plot(HP_periodBehavData_ms(1,:))
-plot(whiskingPhase_ms(1,:))
-plot(whiskerTraces_breathFreq_ms(1,:))
+% figure; hold on
+% % plot(periodBehavData_ms(1,:))
+% % plot(LP_periodBehavData_ms(1,:))
+% plot(whiskerTraces_whiskFreq_ms(1,:))
+% % plot(HP_periodBehavData_ms(1,:))
+% plot(whiskingPhase_ms(1,:))
+% plot(whiskerTraces_breathFreq_ms(1,:))
 
+% parameters for coherence computation
+params.Fs=1000; % sampling frequency
+params.fpass=[4 20]; %peakWhiskFreq; % band of frequencies to be kept
+params.tapers=[2 3]; % taper parameters (corresponds to  % time-bandwidth product of 2: NW=2 [NW 2*NW-1]
+params.pad=1; % pad factor for fft
+params.err=[2 0.05];
+params.trialave=0;
+global CHRONUXGPU
+CHRONUXGPU = 1;
+        
 for unitNum=1:size(spikeRasters_ms,1)
-    for whiskNum=1:size(whiskerTraces_whiskFreq_ms,1)
+    for whiskNum=1 %:size(whiskerTraces_whiskFreq_ms,1)
         %% Find whisking periods of at least 500ms
         % peakWhisking_ms=WhiskingAnalysisFunctions.FindWhiskingBouts(periodBehavData_ms(1,:));
         % peakWhiskingIdx=find(peakWhisking_ms(1,:)==max(peakWhisking_ms(1,:)));
         [whiskingEpochsIdx,wAmplitude,setPoint]=WhiskingAnalysisFunctions.FindWhiskingEpochs(...
             whiskerTraces_whiskFreq_ms(whiskNum,:),whiskingPhase_ms(whiskNum,:),500);
         % plot(whiskingEpochsIdx*50)
-        whiskingEpochs=whiskingEpochsIdx;
+        if sum(whiskingEpochsIdx)==0
+            continue
+        else
+            whiskingEpochs=whiskingEpochsIdx;
         %restrict to first 90s
         % whiskingEpochs(90000:end)=0;
-        
-        %% agregate whsiker motion components
+        end
+        %% find peak whisking frequency
+        whiskFreqSpectrum=abs(fft(whiskerTraces_whiskFreq_ms(whiskNum,whiskingEpochs)));
+        numVals=numel(whiskerTraces_whiskFreq_ms(whiskNum,whiskingEpochs));
+        whiskFreqSpectrum = smoothdata(whiskFreqSpectrum(1:floor(numVals/2)+1),...
+            'movmean',round(numel(whiskFreqSpectrum)/2/200));
+        % peakWhiskFreq(2:end-1) = 2*peakWhiskFreq(2:end-1);
+        freqArray = 1000*(0:(numVals/2))/numVals;
+%       figure;  plot(freqArray,whiskFreqSpectrum)
+        % title('Single-Sided Amplitude Spectrum of X(t)')
+        peakWhiskFreq=freqArray(whiskFreqSpectrum==max(whiskFreqSpectrum));
+
+        %% agregate whisker motion components
         whiskerMotion=[whiskingPhase_ms(whiskNum,:)',wAmplitude',setPoint'];
         %% Coherence
         % we want the coherence at the peak frequency
-        params.Fs=1000; % sampling frequency
-        params.fpass=10; % band of frequencies to be kept
-        params.tapers=[2 3]; % taper parameters (corresponds to  % time-bandwidth product of 2: NW=2 [NW 2*NW-1]
-        params.pad=1; % pad factor for fft
-        params.err=[2 0.05];
-        params.trialave=0;
-        global CHRONUXGPU
-        CHRONUXGPU = 1;
+
+        try
         [Coherence,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpb(...
-            whiskerMotion(whiskingEpochs,:),repmat(spikeRasters_ms(unitNum,whiskingEpochs)',1,3),params);
-        allCoherence{unitNum}(:,whiskNum)=Coherence;
+            whiskerTraces_whiskFreq_ms(whiskNum,whiskingEpochs)',spikeRasters_ms(unitNum,whiskingEpochs)',params);
+        
+%         smoothedCoherence=smoothdata(Coherence(:,1),'movmean',round(length(Coherence(:,1))/diff(params.fpass)));
+figure; hold on 
+plot(sgFreq,Coherence)
+% plot(sgFreq,smoothedCoherence)
+%        smoothedCoherence(find(sgFreq>=peakWhiskFreq,1),:)
+       
+%         allCoherence{unitNum}(:,whiskNum)=Coherence;
+        catch
+            continue
+        end
     end
-    allCoherence{unitNum}
-    if logical(sum(allCoherence{unitNum}(1,:)>0.8))
-        bestWhisker=allCoherence{unitNum}(1,:)==max(allCoherence{unitNum}(1,:));
-        NBC_Plots_PhaseTuning(whiskingPhase_ms(bestWhisker,:),whiskingEpochs,...
-            spikeRasters_ms(unitNum,:),false,['Unit ' str2double(unitNum) ephys.recName(1:end-19)])
-        NBC_Plots_SpikingWhiskAngleCC(periodBehavData_ms(bestWhisker,:),whiskingPhase_ms(bestWhisker,:),...
-            whiskingEpochs,spikeRasters_ms(unitNum,:),SDFs_ms(unitNum,:),false,ephys.recName)
-    end
+%     allCoherence{unitNum}
+%     if logical(sum(allCoherence{unitNum}(1,:)>0.8))
+%         bestWhisker=allCoherence{unitNum}(1,:)==max(allCoherence{unitNum}(1,:));
+%         NBC_Plots_PhaseTuning(whiskingPhase_ms(bestWhisker,:),whiskingEpochs,...
+%             spikeRasters_ms(unitNum,:),false,['Unit ' str2double(unitNum) ephys.recName(1:end-19)])
+%         NBC_Plots_SpikingWhiskAngleCC(periodBehavData_ms(bestWhisker,:),whiskingPhase_ms(bestWhisker,:),...
+%             whiskingEpochs,spikeRasters_ms(unitNum,:),SDFs_ms(unitNum,:),false,ephys.recName)
+%     end
 end
 
 figure;
@@ -99,6 +127,13 @@ subplot(3,1,1); plot(sgFreq,Coherence);
 subplot(3,1,2); plot(sgFreq,10*log10(S1));
 subplot(3,1,3); plot(sgFreq,10*log10(S2))
 Coherence(S1==max(S1))
+
+%% Angle tuning
+NBC_Plots_SpikingWhiskAngleTuning(whiskerTraces_whiskFreq_ms,whiskingPhase_ms,...
+    whiskingEpochs,spikeRasters_ms,false,ephys.recName) %periodBehavData_ms 
+
+%% Is it tuned to Phase? - Polar plot summary
+NBC_Plots_PhaseTuning(whiskingPhase_ms,whiskingEpochs,spikeRasters_ms,false,ephys.recName)
 
 %% whisking vs spikes plot
 NBC_Plots_SpikesWhisking(whiskerTraces_whiskFreq_ms,whiskingPhase_ms,spikeRasters_ms);
@@ -111,12 +146,13 @@ NBC_Plots_WhiskingPhaseVideoFrame(periodBehavData_ms,vidTimes_ms,...
 NBC_Plots_SpikesWhiskingOverlayOnVideo(periodBehavData_ms,vidTimes_ms,...
     spikeRasters_ms,SDFs_ms); %cursor_1,cursor_2
 
-%% Is it tuned to Phase? - Polar plot summary
-NBC_Plots_PhaseTuning(whiskingPhase_ms,whiskingEpochs,spikeRasters_ms,false,ephys.recName)
+
 
 %% Is WR bursting reliable? - Plot spike times with whisking angle
-NBC_Plots_SpikingWhiskAngleCC(periodBehavData_ms,whiskingPhase_ms,...
-    whiskingEpochsIdx,spikeRasters_ms,SDFs_ms,false,ephys.recName)
+% NBC_Plots_SpikingWhiskAngleCC(periodBehavData_ms,whiskingPhase_ms,...
+%     whiskingEpochs,spikeRasters_ms,SDFs_ms,false,ephys.recName)
+
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%

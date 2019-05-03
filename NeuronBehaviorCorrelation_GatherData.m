@@ -211,6 +211,7 @@ else
             load([dirName fileName]);
         end
     end
+    cd(startingDir);
     save('whiskerTrackingData','whiskerTrackingData');
 end
 %% Recording start time (mostly for OE)

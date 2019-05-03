@@ -122,11 +122,11 @@ plot(sgFreq,Coherence)
 %     end
 end
 
-figure;
-subplot(3,1,1); plot(sgFreq,Coherence);
-subplot(3,1,2); plot(sgFreq,10*log10(S1));
-subplot(3,1,3); plot(sgFreq,10*log10(S2))
-Coherence(S1==max(S1))
+% figure;
+% subplot(3,1,1); plot(sgFreq,Coherence);
+% subplot(3,1,2); plot(sgFreq,10*log10(S1));
+% subplot(3,1,3); plot(sgFreq,10*log10(S2))
+% Coherence(S1==max(S1))
 
 %% Angle tuning
 NBC_Plots_SpikingWhiskAngleTuning(whiskerTraces_whiskFreq_ms,whiskingPhase_ms,...

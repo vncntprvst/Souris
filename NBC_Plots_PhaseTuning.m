@@ -5,9 +5,9 @@ function NBC_Plots_PhaseTuning(whiskingPhase_ms,whiskingPeriod,spikeRasters_ms,s
 if nargin<5
     recName='PhaseTuning_polarPlot';
 end
-phaseTuningSummaryFig=figure('name',recName); %'position',[969    49   944   948],
-colormapSeed=lines;
-cmap=[colormapSeed(1:7,:);(colormapSeed+flipud(colormap(copper)))/2;autumn];
+if ~contains(recName,'subplot')
+    phaseTuningSummaryFig=figure('name',recName); %'position',[969    49   944   948],
+end
 
 for unitNum=1:size(spikeRasters_ms,1)
     % get spikes

@@ -6,7 +6,9 @@ function phaseTuning=NBC_Plots_PhaseTuning(whiskingPhase,breathingPhase,...
 if nargin<5
     recName='PhaseTuning_polarPlot';
 end
-phaseTuningSummaryFig=figure('name',recName); %'position',[969    49   944   948],
+if ~contains(recName,'subplot')
+    phaseTuningSummaryFig=figure('name',recName); %'position',[969    49   944   948],
+end
 % colormapSeed=lines;
 % cmap=[colormapSeed(1:7,:);(colormapSeed+flipud(colormap(copper)))/2;autumn];
 phaseTuning=nan(size(spikeRasters,1),2);

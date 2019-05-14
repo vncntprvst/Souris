@@ -3,7 +3,9 @@ function NBC_Plots_SpikingWhiskAngleTuning(whiskerAngleData,whiskingPhaseData,..
 if nargin<6
     recName='SpikingWhiskAngleCC';
 end
-SpikeWAngleCorrFigure=figure('name',recName); %'position',[969    49   944   948]
+if ~contains(recName,'subplot')
+    SpikeWAngleCorrFigure=figure('name',recName); %'position',[969    49   944   948]
+end
 for unitNum=1:size(spikeRasters,1)
     % get spikes
     unitSpikes=spikeRasters(unitNum,:);
@@ -13,9 +15,9 @@ for unitNum=1:size(spikeRasters,1)
     whiskingPhaseWP=whiskingPhaseData(1,whiskingEpochs);
     spikeOnAngle{1}=whiskingAngleWP(logical(unitSpikesWP) & logical(whiskingPhaseWP>0));
     spikeOnAngle{2}=whiskingAngleWP(logical(unitSpikesWP) & logical(whiskingPhaseWP<0));
-%     if size(spikeRasters,1)>1
-    subplot(ceil(size(spikeRasters,1)/4),4,unitNum); hold on
-%     end
+    if size(spikeRasters,1)>1
+        subplot(ceil(size(spikeRasters,1)/4),4,unitNum); hold on
+    end
     histogram(spikeOnAngle{1},20,'Displaystyle','stairs',...
         'Normalization','count','LineWidth',2,'FaceColor','none','EdgeColor',[0.2 0.5 0.7]);
 %     subplot(ceil(size(spikeRasters,1)/4)*2,4,unitNum*2)

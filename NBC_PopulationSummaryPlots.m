@@ -43,7 +43,6 @@ for fileNum=1:numel(processedFiles{:})
     [whiskingEpochsIdx,wAmplitude,setPoint]=WhiskingAnalysisFunctions.FindWhiskingEpochs(...
         whiskerTraces_whiskFreq_ms(1,:),whiskingPhase_ms(1,:),500);
     whiskingEpochsInfo= bwconncomp(whiskingEpochsIdx) ;
-    
     whiskBoutDuration=cellfun(@(whiskBout) numel(whiskBout), whiskingEpochsInfo.PixelIdxList);
     longestWhiskBout=whiskBoutDuration==max(whiskBoutDuration);
     longWhiskBoutInit=whiskingEpochsInfo.PixelIdxList{longestWhiskBout}(1);

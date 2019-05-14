@@ -155,6 +155,26 @@ NBC_Plots_SpikingWhiskAngleTuning(whiskerTraces_whiskFreq_ms,whiskingPhase_ms,..
     whiskingEpochs,spikeRasters_ms,false,ephys.recName) %periodBehavData_ms 
 
 
+ %% get average waveform
+    avWaveform=nan(numel(bestUnits), size(ephys.spikes.waveforms,2));
+    %     figure; hold on
+    for unitNum=1:numel(bestUnits)
+        avWaveform(unitNum,:)=nanmean(ephys.spikes.waveforms(...
+            ephys.spikes.unitID==bestUnits(unitNum),:));
+        %         plot(avWaveform(unitNum,:))
+    end
+    % neuron with biggest waveform
+    biggestUnit=sum(abs(diff(avWaveform,[],2)),2)==max(sum(abs(diff(avWaveform,[],2)),2));
+    
+    % filters trace
+    whiskingEpochsInfo= bwconncomp(whiskingEpochsIdx) ;
+    whiskBoutDuration=cellfun(@(whiskBout) numel(whiskBout), whiskingEpochsInfo.PixelIdxList);
+    longestWhiskBout=whiskBoutDuration==max(whiskBoutDuration);
+    longWhiskBoutInit=whiskingEpochsInfo.PixelIdxList{longestWhiskBout}(1);
+    displayWindow=max([longWhiskBoutInit-1000 1]):min([longWhiskBoutInit+58999 numel(whiskingEpochsIdx)-1]) ;
+    filtTraces=PreProcData(ephys.traces(:,displayWindow*30),ephys.spikes.samplingRate,{'CAR','all'});
+    filtTraces=filtTraces(keepTraces(biggestUnit),:);
+    
 %% whisking snapshot figures
 NBC_Plots_WhiskingPhaseVideoFrame(whiskerAngleData_ms,vidTimes_ms,...
     whiskingPhase_ms,spikeRasters_ms,SDFs_ms);

@@ -13,6 +13,7 @@ startingDir=cd;
 %     video recording
 
 %% Locate data
+% Spikes
 spikeSortingFiles = cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
     {'*_spikes.mat','*.result.hdf5','*_rez.mat','*_res.mat','*_jrc.mat','*.csv','*_spikesResorted.mat'},'UniformOutput', false);
 spikeSortingFiles=vertcat(spikeSortingFiles{~cellfun('isempty',spikeSortingFiles)});
@@ -25,41 +26,37 @@ dataFiles = cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
     {'*.dat','*.bin','*raw.kwd','*RAW*Ch*.nex','*.ns*'},'UniformOutput', false);
 dataFiles=vertcat(dataFiles{~cellfun('isempty',dataFiles)});
 % keep those files
-TTLFiles=dataFiles(cellfun(@(flnm) contains(flnm,{'_trialTTLs'}),...
-    {dataFiles.name})); %not used here. Used for Phototag plots
+% TTLFiles=dataFiles(cellfun(@(flnm) contains(flnm,{'_trialTTLs'}),...
+%     {dataFiles.name})); %not used here. Used for Phototag plots
 dataFiles=dataFiles(cellfun(@(flnm) contains(flnm,{'_export';'_traces'}),...
     {dataFiles.name}));
 
-% try
-%     fileName=dirListing(~cellfun('isempty',cellfun(@(x) strfind(x,'_WhiskerAngle.csv'),...
-%         {dirListing.name},'UniformOutput',false))).name;
-% catch
-%     [fileName,dirName] = uigetfile({'*.mat; *.csv; *.avi','.mat Files; .csv Files; video Files';...
-%         '*.*','All Files'},'Whisker angle / Perodical Behavior Data / Video file','C:\Data\Ephys\Behav');
-% end
+% Whisker tracking files
 whiskerTrackingFiles=cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
     {'*.csv','whiskerTrackingData'},'UniformOutput', false);
 whiskerTrackingFiles=vertcat(whiskerTrackingFiles{~cellfun('isempty',whiskerTrackingFiles)});
 whiskerTrackingFiles=whiskerTrackingFiles(cellfun(@(flnm) contains(flnm,{'DeepCut','Whisker'}),...
     {whiskerTrackingFiles.name}));
 
+TTLFiles=cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
+    {'*TTLOnset.csv','whiskerTrackingData'},'UniformOutput', false);
+TTLFiles=vertcat(TTLFiles{~cellfun('isempty',TTLFiles)});
+
 %% Get video sync data
 videoFrameTimeFiles=cellfun(@(fileFormat) dir([cd filesep '**' filesep fileFormat]),...
-    {'*.dat'},'UniformOutput', false);
+    {'*.dat','*.csv'},'UniformOutput', false);
 videoFrameTimeFiles=vertcat(videoFrameTimeFiles{~cellfun('isempty',videoFrameTimeFiles)});
 videoFrameTimeFiles=videoFrameTimeFiles(cellfun(@(flnm) contains(flnm,{'_VideoFrameTimes','vSync'}),...
     {videoFrameTimeFiles.name}));
 
 % decide which file to use
-% recName='vIRt22_1016_5100_50ms1Hz10mW';
-spikeFileNum=1; dataFileNum=1; TTLFileNum=1; wTrackNumFile=1; %[1,2]; vFrameFileNum=1;
+spikeFileNum=1; wTrackNumFile=1;
 if sum(cellfun(@(flnm) contains(flnm,'vSync'),{videoFrameTimeFiles.name}))
     videoFrameTimeFiles=videoFrameTimeFiles(cellfun(@(flnm) contains(flnm,'vSync'),...
         {videoFrameTimeFiles.name}));
 else
     videoFrameTimeFiles=videoFrameTimeFiles(cellfun(@(flnm) contains(flnm,'_VideoFrameTimes'),...
-        {videoFrameTimeFiles.name}));
-    
+        {videoFrameTimeFiles.name})); 
 end
 
 %% Load spikes and recording traces
@@ -79,7 +76,7 @@ if logical(sum(cellfun(@(x) contains(x,'rec_info'),...
 elseif ~exist('rec_info','var') && exist([dataFiles(spikeFileNum).name(1:end-10) 'recInfo.mat'],'file')
     load([dataFiles(spikeFileNum).name(1:end-10) 'recInfo']);
 else
-    recInfo=rec_info; clear rec_info;
+    recInfo=rec_info; clear rec_info; %load('vIRt12-2018-01-18-15-53-03-Acute-KAionto-5100-cutW_nopp_recInfo.mat', 'rec_info')
 end
 if isfield(recInfo,'exportedChan')
     numElectrodes=numel(recInfo.exportedChan);
@@ -98,29 +95,11 @@ dataFileIdx=cellfun(@(datF) contains(datF,regexp(recName,'\S+?(?=\.\w+\.\w+$)','
 dataFileName=dataFiles(dataFileIdx).name;
 dataFileDir=dataFiles(dataFileIdx).folder;
 
-% eval(['jrc ''load-bin'' ' bla ' int16'])
-% trWav_raw = load_bin_(dataFileName, 'int16',[32 14 recDuration]);
-% vcFile=fullfile(dataFileDir,dataFileName);
-% fid=fopen(dataFileName, 'r');
-% fclose(bla)
-%         fid = fopen(vcFile, 'r');
-% %         if header>0, fseek(fid, header, 'bof'); end
-%         if isempty(dimm) % read all
-%             S_file = dir(vcFile);
-%             if numel(S_file)~=1, return; end % there must be one file
-%             nData = floor((S_file(1).bytes - header) / bytesPerSample_(dataType));
-%             dimm = [nData, 1]; %return column
-%         end
-%
-% fread_(foo,[32 14 187354],'int16');
-% fclose(foo);
-
 traces = memmapfile(fullfile(dataFileDir,dataFileName),'Format','int16');
 allTraces=double(traces.Data);
 recDuration=int64(length(allTraces)/numElectrodes);
 try
     allTraces=reshape(allTraces,[numElectrodes recDuration]);
-    %     allTraces=reshape(trWav_raw,[numElectrodes size(trWav_raw,2)*size(trWav_raw,3)]);
 catch
     allTraces=reshape(allTraces',[recDuration numElectrodes]);
 end
@@ -130,18 +109,6 @@ spikes=LoadSpikeData(recName,traces);
 if isfield(spikes,'samplingRate') && isempty(spikes.samplingRate)
     spikes.samplingRate=recInfo.samplingRate;
     spikes.bitResolution=recInfo.bitResolution;
-end
-%% Load TTLs (are they needed?)
-try
-    TTLDir=TTLFiles(TTLFileNum).folder;
-    TTLFileName= TTLFiles(TTLFileNum).name;%[regexp(recName,'\S+?(?=_export)','match','once') '_TTLs.dat'];
-    fid = fopen(fullfile(TTLDir,TTLFileName), 'r');
-    TTLTimes = fread(fid,[2,Inf],'int32');
-    fclose(fid);
-    TTLs.times=TTLTimes(1,:);
-    TTLs.samplingRate=1000;
-catch
-    TTLs=[];
 end
 
 %% Read frame times
@@ -157,10 +124,9 @@ elseif contains(videoFrameFileName,'VideoFrameTimes.dat')
     fclose(fid);
 else % csv file from Bonsai
     vFrameTimes=ReadVideoFrameTimes;
-    % videoFrameTimes=readVideoTTLData(dirListing);
 end
 
-%% Import whisker tracking data (aka "thetas")
+%% Import whisker tracking data 
 startDirFiles=dir(startingDir);
 isWTData=cellfun(@(x) contains(x,'whiskerTrackingData'), {startDirFiles.name});
 if sum(isWTData)
@@ -200,9 +166,6 @@ else
                     whiskerTrackingData=multiWhiskerTrackingData(:,7); %posterior most whisker
                 end
                 whiskerTrackingData=WhiskerAngleSmoothFill(whiskerTrackingData); %(:,1),whiskerTrackingData(:,2));
-                %     figure; hold on; plot(whiskerTrackingData(1,:))
-                %adjust base angle if needed, e.g. 45degrees at full retraction:
-                %             whiskerTrackingData=whiskerTrackingData-min(whiskerTrackingData)+45;
             end
         elseif contains(whiskerTrackFileName,'.avi') %video file to extract whisker angle
             whiskerTrackingData=ExtractMultiWhiskerAngle_FFTonContours(fullfile(dirName,fileName));
@@ -211,12 +174,12 @@ else
             load([dirName fileName]);
         end
     end
+    cd(startingDir)
     save('whiskerTrackingData','whiskerTrackingData');
 end
 %% Recording start time (mostly for OE)
-% Processor: Rhythm FPGA Id: 100 subProcessor: 0 start time: 27306000@30000Hz
 if exist('recInfo','var') & isfield(recInfo,'recordingStartTime')
-    startTime=double(recInfo.recordingStartTime); % 27306000; % !!!
+    startTime=double(recInfo.recordingStartTime); 
 else
     startTime=0;
     %well, make sure time indices are properly aligned
@@ -247,9 +210,6 @@ vidTimes=vFrameTimes(1,vFrameTimes(2,:)<0)-double(startTime); %when using Paul's
 if spikes.times(end) > size(allTraces,2)
     spikes.times=spikes.times-startTime;
 end
-if ~isempty(TTLs)
-    TTLs.times=TTLs.times-double(startTime/(samplingRate/1000));
-end
 % then sync
 if vidTimes(1)>=0
     allTraces=allTraces(:,vidTimes(1):vidTimes(end));
@@ -271,88 +231,19 @@ else % need to cut behavior trace
     %     whiskerTrackingData=...
 end
 
-% figure; hold on
-% plot(vidTimes-vidTimes(1),whiskerTrackingData(1,:)-mean(whiskerTrackingData(1,:)));
-% bestUnitTimes=spikes.times(spikes.unitID==4);
-% plot(bestUnitTimes-vidTimes(1),zeros(numel(bestUnitTimes),1),'dk')
-% 
-
 % Adjust behavior array if necessary
 if numel(whiskerTrackingData(1,:))~=numel(vidTimes)
     vidTimes=linspace(1,double(vidTimes(end)+1),size(whiskerTrackingData,2));
-%     whiskerTrackingData=whiskerTrackingData(:,1:numel(vidTimes)); %but check why that is
 end
 
-% periodBehavData=[whiskerTrackingData',vidTimes'];
-% periodBehavData=[whiskerTrackingData(videoFrameTimes.TTLFrames(1):...
-%                   size(videoFrameTimes.frameTime_ms,1)),... %Trace
-%     videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(1):end)-...
-%     videoFrameTimes.frameTime_ms(videoFrameTimes.TTLFrames(1))+1]; % Time points
-% figure; hold on
-% plot(periodBehavData(:,2),periodBehavData(:,1))
-
-
-% keepUnits=unique(unitID);
-% recordingTrace=cell(length(keepTraces),1);
-% for traceNum=1:length(keepTraces)
-%     recordingTrace{traceNum}=allTraces(keepTraces(traceNum),:); %select the trace to keep
-%     recordingTrace{traceNum}=recordingTrace{traceNum}(TTLs.times(1)*double(samplingRate)/...
-%         double(TTLs.samplingRate):end); % cut out trace that occurs before first TTL
-% end
-%
-% % same for spikes from selected units
-% spikeTimes=cell(length(keepUnits),1);
-% for clusterNum=1:length(keepUnits)
-%     spikeTimes{clusterNum}=double(spikes.times(spikes.unitID==keepUnits(clusterNum))); %figure; plot(spikeTimes)
-%     spikeTimes{clusterNum}=spikeTimes{clusterNum}-(double(TTLs.times(1))*double(samplingRate)/double(TTLs.samplingRate));
-%     spikeTimes{clusterNum}=spikeTimes{clusterNum}(spikeTimes{clusterNum}>0);
-% end
-% % rs_spikeTimes=double(source_spikes.times(source_spikes.unitID==2)); %figure; plot(spikeTimes)
-
-% figure('Color','white');
-% for traceNum=1:length(keepTraces)
-% %     subplot(length(keepTraces),1,traceNum);
-%     figure('Color','white'); hold on;
-%     plot(recordingTraces(traceNum,:));
-%     correspondingUnits=unique(unitID(ismember(preferredElectrode,keepTraces(traceNum))));
-%     for clusterNum=1:numel(correspondingUnits)
-%         plot(spikeTimes(unitID==correspondingUnits(clusterNum)),...
-%             ones(numel(spikeTimes(unitID==correspondingUnits(clusterNum))),1)*-300,'*');
-%         %     plot(rs_spikeTimes,ones(size(rs_spikeTimes,1),1)*-300,'d')
-%     end
-%     midRec=round(size(recordingTraces,2)/2);
-%     set(gca,'ylim',[-500 500],'xlim',[midRec-samplingRate midRec+samplingRate]);
-% end
-
-% foo=resample(periodBehavData,30,1); foo=foo(1:length(allTraces(channelNum,:)));
-% plot(foo*1000-200)
-
-
-% params.Fs=30000;params.fpass=[0 25];params.tapers=[2 3];params.pad=1;params.err=[2 0.05];params.trialave=0;
-% [C,phi,S12,S1,S2,f]=coherencyc(foo',double(allTraces(channelNum,:))',params);
-% figure; subplot(311); plot(f,C);subplot(312); plot(f,10*log10(S1));subplot(313); plot(f,10*log10(S2))
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% group data in structure
 ephys=struct('traces',allTraces,'spikes',spikes,...
     'samplingRate',samplingRate,'recName',recName);
-% 'spikeRasters_ms',spikeRasters_ms,...
-%     'rasterInd_ms',{rasterXInd_ms,rasterYInd_ms},...
-%     ,'SDFs_ms',SDFs_ms,'spikeTimes',spikeTimes,...
-%     'waveForms',waveForms,'unitID',unitID,'preferredElectrode',preferredElectrode,...
-%     'bestUnits',bestUnits,);
 
 behav=struct('whiskerTrackingData',whiskerTrackingData,'vidTimes',vidTimes,...
     'vFrameTimes',vFrameTimes,'startTime',startTime);
-% 'BP_periodBehavData_ms',BP_periodBehavData_ms,'HP_periodBehavData_ms',...
-%     HP_periodBehavData_ms,'LP_periodBehavData_ms',LP_periodBehavData_ms,...
-%     'HTBP_periodBehavData_ms',HTBP_periodBehavData_ms,'peakWhisking_ms',peakWhisking_ms,...
-%     'periodBehavData_ms',periodBehavData_ms,'whiskingPhase_ms',whiskingPhase_ms,...
-%     'instantFreq_ms',instantFreq_ms,'sgFreq',sgFreq,'sgTime',sgTime,'sgPower',...
-%     sgPower,);
-% 
+ 
 cd(startingDir);
 
 

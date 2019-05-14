@@ -10,43 +10,64 @@ else
     save('processedData','ephys','behav','-v7.3');
 end
 
-% figure; hold on
-% plot(behav.vidTimes,behav.whiskerTrackingData(1,:)-mean(behav.whiskerTrackingData(1,:)));
-% bestUnitTimes=ephys.spikes.times(ephys.spikes.unitID==4);
-% plot(bestUnitTimes,zeros(numel(bestUnitTimes),1),'dk')
-
-bestUnits=EphysFunctions.FindBestUnits(ephys.spikes.unitID);
+%% compute rasters
 [spikeRasters_ms,unitList]=EphysFunctions.MakeRasters(ephys.spikes.times,ephys.spikes.unitID,...
     ephys.samplingRate,int32(size(ephys.traces,2)/ephys.samplingRate*1000));
-% decide which units to keep
-keepUnits=ismember(unitList,bestUnits); %keepUnits=unitList
-keepTraces=unique(ephys.spikes.preferredElectrode(ismember(ephys.spikes.unitID,unitList(keepUnits))));
-% compute spike density functions
+%% compute spike density functions
 SDFs_ms=EphysFunctions.MakeSDF(spikeRasters_ms);
-spikeRasters_ms=spikeRasters_ms(keepUnits,:);
-SDFs_ms=SDFs_ms(keepUnits,:);
-% for whisking data resampling, use ephys sampling rate, if videao times are
-% based on TTLs
-periodBehavData_ms=WhiskingAnalysisFunctions.ResampleBehavData...
+%% whisking data resampling. Use ephys sampling rate, if video times are based on TTLs
+whiskerAngleData_ms=WhiskingAnalysisFunctions.ResampleBehavData...
     (behav.whiskerTrackingData,behav.vidTimes,ephys.samplingRate);
 % make sure behavior and spike traces have same length
-if size(SDFs_ms,2)~=size(periodBehavData_ms,2)
+if size(SDFs_ms,2)~=size(whiskerAngleData_ms,2)
     % check what's up
-    if size(SDFs_ms,2)<size(periodBehavData_ms,2)
-        periodBehavData_ms=periodBehavData_ms(:,1:size(SDFs_ms,2));
+    if size(SDFs_ms,2)<size(whiskerAngleData_ms,2)
+        whiskerAngleData_ms=whiskerAngleData_ms(:,1:size(SDFs_ms,2));
     else
-        SDFs_ms=SDFs_ms(:,1:size(periodBehavData_ms,2));
-        spikeRasters_ms=spikeRasters_ms(:,1:size(periodBehavData_ms,2));
+        SDFs_ms=SDFs_ms(:,1:size(whiskerAngleData_ms,2));
+        spikeRasters_ms=spikeRasters_ms(:,1:size(whiskerAngleData_ms,2));
     end
 end
+
 %% filtered whisking traces
-whiskerTraces_whiskFreq_ms=WhiskingAnalysisFunctions.BandPassBehavData(periodBehavData_ms,1000,[4 20]);
-whiskerTraces_breathFreq_ms=WhiskingAnalysisFunctions.BandPassBehavData(periodBehavData_ms,1000,[1 4]);
+whiskerTraces_whiskFreq_ms=WhiskingAnalysisFunctions.BandPassBehavData(whiskerAngleData_ms,1000,[4 20]);
+% whiskerTraces_fastWhiskFreq_ms=WhiskingAnalysisFunctions.BandPassBehavData(whiskerAngleData_ms,1000,[10 25]);
+whiskerTraces_breathFreq_ms=WhiskingAnalysisFunctions.BandPassBehavData(whiskerAngleData_ms,1000,[1 4]);
 % HP_periodBehavData_ms=WhiskingAnalysisFunctions.HighPassBehavData(periodBehavData_ms);
 % LP_periodBehavData_ms=WhiskingAnalysisFunctions.LowPassBehavData(periodBehavData_ms);
 
 %% find phase
-whiskingPhase_ms=WhiskingAnalysisFunctions.ComputePhase(whiskerTraces_whiskFreq_ms); %,whiskingEpochs);
+whiskingPhase_ms=WhiskingAnalysisFunctions.ComputePhase(whiskerTraces_whiskFreq_ms); 
+% fastWhiskingPhase_ms=WhiskingAnalysisFunctions.ComputePhase(whiskerTraces_whiskFreq_ms); 
+breathingPhase_ms=WhiskingAnalysisFunctions.ComputePhase(whiskerTraces_whiskFreq_ms); 
+
+%% whisking epochs (based on first trace)
+% whiskerTraces_whiskFreq_ms=WhiskingAnalysisFunctions.BandPassBehavData(periodBehavData_ms,1000,[4 20]);
+whiskingEpochs=WhiskingAnalysisFunctions.FindWhiskingEpochs(...
+    WhiskingAnalysisFunctions.BandPassBehavData(whiskerAngleData_ms(1,:),1000,[4 20]),...
+    whiskingPhase_ms(1,:),500);
+
+%% Is it tuned to Phase? - Polar plot summary
+phaseTuning=NBC_Plots_PhaseTuning(whiskingPhase_ms,breathingPhase_ms,...
+    whiskingEpochs,spikeRasters_ms,false,ephys.recName);
+
+% decide which units to keep: 
+    % keepUnits=unitList; %all units 
+    
+mostFrqUnits=EphysFunctions.FindBestUnits(ephys.spikes.unitID,3);
+keepUnits{1}=ismember(unitList,mostFrqUnits); % most numerous units
+    
+keepUnits{2}=~isnan(phaseTuning(:,1)); % phase tuned units
+% restrict to selected units
+spikeRasters{1}=spikeRasters_ms(keepUnits{1},:);
+spikeRasters{2}=spikeRasters_ms(keepUnits{2},:);
+
+SDFs_ms=SDFs_ms(keepUnits,:);
+keepTraces=unique(ephys.spikes.preferredElectrode(ismember(ephys.spikes.unitID,unitList(keepUnits))));
+
+%% whisking vs spikes plot
+whiskerTraces_whiskFreq_ms=WhiskingAnalysisFunctions.BandPassBehavData(whiskerAngleData_ms,1000,[4 10]);
+NBC_Plots_SpikesWhisking(whiskerTraces_whiskFreq_ms,whiskingPhase_ms,whiskingEpochs,spikeRasters,whiskerTraces_breathFreq_ms);
 
 % figure; hold on
 % % plot(periodBehavData_ms(1,:))
@@ -122,28 +143,24 @@ plot(sgFreq,Coherence)
 %     end
 end
 
-figure;
-subplot(3,1,1); plot(sgFreq,Coherence);
-subplot(3,1,2); plot(sgFreq,10*log10(S1));
-subplot(3,1,3); plot(sgFreq,10*log10(S2))
-Coherence(S1==max(S1))
+% figure;
+% subplot(3,1,1); plot(sgFreq,Coherence);
+% subplot(3,1,2); plot(sgFreq,10*log10(S1));
+% subplot(3,1,3); plot(sgFreq,10*log10(S2))
+% Coherence(S1==max(S1))
+
 
 %% Angle tuning
 NBC_Plots_SpikingWhiskAngleTuning(whiskerTraces_whiskFreq_ms,whiskingPhase_ms,...
     whiskingEpochs,spikeRasters_ms,false,ephys.recName) %periodBehavData_ms 
 
-%% Is it tuned to Phase? - Polar plot summary
-NBC_Plots_PhaseTuning(whiskingPhase_ms,whiskingEpochs,spikeRasters_ms,false,ephys.recName)
-
-%% whisking vs spikes plot
-NBC_Plots_SpikesWhisking(whiskerTraces_whiskFreq_ms,whiskingPhase_ms,spikeRasters_ms);
 
 %% whisking snapshot figures
-NBC_Plots_WhiskingPhaseVideoFrame(periodBehavData_ms,vidTimes_ms,...
+NBC_Plots_WhiskingPhaseVideoFrame(whiskerAngleData_ms,vidTimes_ms,...
     whiskingPhase_ms,spikeRasters_ms,SDFs_ms);
 
 %% overlay whisking and spikes on video
-NBC_Plots_SpikesWhiskingOverlayOnVideo(periodBehavData_ms,vidTimes_ms,...
+NBC_Plots_SpikesWhiskingOverlayOnVideo(whiskerAngleData_ms,vidTimes_ms,...
     spikeRasters_ms,SDFs_ms); %cursor_1,cursor_2
 
 

@@ -27,3 +27,4 @@ thetas=smoothdata(thetas,'rloess',7);
 %fill missing / NaNs values (if any)
 thetas=fillmissing(thetas,'spline',1,'EndValues','nearest');
 % plot(thetas)
+

@@ -31,7 +31,11 @@ end
 %
 lowestInitialW=find(~isnan(corrCdBaseData(1,:)),1,'last');
 missingValPeriods=isnan(corrCdBaseData(:,lowestInitialW));
-extraValPeriodsIdx=~isnan(corrCdBaseData(:,lowestInitialW+1));
+try
+    extraValPeriodsIdx=~isnan(corrCdBaseData(:,lowestInitialW+1));
+catch 
+    extraValPeriodsIdx=false(size(missingValPeriods));
+end
 shiftingValPeriods=bwconncomp(bwlabel(missingValPeriods | extraValPeriodsIdx));
 baseDiff=abs(diff(corrCdBaseData(:,lowestInitialW)));
 for nanPeriod=1:shiftingValPeriods.NumObjects
@@ -117,7 +121,7 @@ whiskerTrackingData=whiskerTrackingData(:,reshape([1:size(baseData,2)/2;...
 % for whiskBase=contDirection:2:size(baseData,2)
 %     plot(baseData(:,whiskBase))
 % end
-%
+% 
 % figure; hold on
 % for whiskBase=1:6 %:-1:1
 %     plot(centroidYData(:,whiskBase))

@@ -1,7 +1,10 @@
 function thetas=WhiskerAngleSmoothFill(varargin)
 %% Find angle values and convert to degrees
-if nargin==1 && min(size(varargin{1}))==1%orientation values in radian
-    thetas=varargin{1}*180/pi; %equivalent to rad2deg
+if nargin==1 && min(size(varargin{1}))==1%
+    thetas=varargin{1};
+    if max(abs(varargin{1}))==pi %orientation values in radian
+        thetas=thetas*180/pi; %equivalent to rad2deg
+    end
     %center to zero median
     %   thetas=thetas-nanmedian(thetas);
 elseif nargin==2 %centroid values
@@ -41,9 +44,10 @@ elseif nargin==1 && min(size(varargin{1}))>1 % more than 1 whisker centroid valu
         thetas((whiskerNum+1)/2,:) = FindAngle(centroidX,centroidY);
     end
 end
-
+% find dimension
+if size(thetas,2)>size(thetas,1); thetas=thetas'; end
 % find and replace outliers
-thetas = filloutliers(thetas','spline','movmedian',20)';
+thetas = filloutliers(thetas,'spline','movmedian',20)';
 
 %% smooth values
 for whiskerNum=1:size(thetas,1)

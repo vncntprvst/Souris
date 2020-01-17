@@ -40,6 +40,7 @@ else
         recInfo.sessionName=regexprep(recInfo.sessionName,'[^a-zA-Z0-9]+$','');
     end
 end
+
 %% Try attributing a name to the files session
 if ~isfield(recInfo,'sessionName')
     if ~strcmp(currentfolder,'Analysis') || ~strcmp(currentfolder,'SpikeSorting')
@@ -78,6 +79,7 @@ else
     dlg_title = 'Define sampling rate'; num_lines = 1; defaultans = {'30000'};
     samplingRate = str2double(cell2mat(inputdlg(prompt,dlg_title,num_lines,defaultans)));
 end
+
 %% Filter traces if needed
 if filterTraces == true
     allTraces=FilterTrace(allTraces,samplingRate);
@@ -143,22 +145,22 @@ if spikes.times(end) > size(allTraces,2)
 end
 
 %% Import whisker tracking data
-if ~sum(cellfun(@(flnm) contains(flnm,'whiskerangle'),allDataFiles))
+if ~sum(cellfun(@(flnm) contains(flnm,'wMeasurements'),allDataFiles))
         % run ConvertWhiskerData to get those files. Should already be
         % done at this point, though.
         ConvertWhiskerData;
         dirListing=dir(startingDir);
 end
-whiskerTrackingFiles=cellfun(@(flnm) contains(flnm,'whisker'),allDataFiles);
+whiskerTrackingFiles=cellfun(@(flnm) contains(flnm,'wMeasurements'),allDataFiles);
 if sum(whiskerTrackingFiles)
-    whiskerTrackingData.angle=load(dirListing(cellfun(@(flnm) contains(flnm,'whiskerangle'),...
+    whiskerTrackingData=load(dirListing(cellfun(@(flnm) contains(flnm,'wMeasurements'),...
         {dirListing.name})).name);
-    whiskerTrackingData.velocity=load(dirListing(cellfun(@(flnm) contains(flnm,'whiskervelocity'),...
-        {dirListing.name})).name);
-    whiskerTrackingData.phase=load(dirListing(cellfun(@(flnm) contains(flnm,'whiskerphase'),...
-        {dirListing.name})).name);
+%     whiskerTrackingData.velocity=load(dirListing(cellfun(@(flnm) contains(flnm,'whiskervelocity'),...
+%         {dirListing.name})).name);
+%     whiskerTrackingData.phase=load(dirListing(cellfun(@(flnm) contains(flnm,'whiskerphase'),...
+%         {dirListing.name})).name);
 end
-recInfo.SRratio=spikes.samplingRate/whiskerTrackingData.angle.samplingRate;
+recInfo.SRratio=spikes.samplingRate/whiskerTrackingData.samplingRate;
 
 %% Data integrity checks 
 % Check video frame num vs TTLs if difference seems too big here

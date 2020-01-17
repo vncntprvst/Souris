@@ -45,11 +45,11 @@ spikeSortingFiles=spikeSortingFiles(~cellfun(@(flnm) contains(flnm,{'DeepCut','W
     {spikeSortingFiles.name}));
 
 %% Ephys recording data files
-dataFiles = cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
+ephysFiles = cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
     {'*.dat','*.bin','*raw.kwd','*RAW*Ch*.nex','*.ns*'},'UniformOutput', false);
-dataFiles=vertcat(dataFiles{~cellfun('isempty',dataFiles)});
-dataFiles=dataFiles(cellfun(@(flnm) contains(flnm,{'_export';'_traces'}),...
-    {dataFiles.name}));
+ephysFiles=vertcat(ephysFiles{~cellfun('isempty',ephysFiles)});
+ephysFiles=ephysFiles(cellfun(@(flnm) contains(flnm,{'_export';'_traces'}),...
+    {ephysFiles.name}));
 
 %% Recording info
 infoFiles = cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
@@ -57,35 +57,42 @@ infoFiles = cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileForm
 infoFiles=vertcat(infoFiles{~cellfun('isempty',infoFiles)});
 
 %% Whisker tracking files
-% whiskerangle velocity and phase exported from ConvertWhiskerData. If not there, run it.
-whiskerAngleFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
-    {'*whiskerangle.mat'},'UniformOutput', false); %'*.csv','whiskerTrackingData',
-if isempty(whiskerAngleFiles{:})
+% Typically exported from ConvertWhiskerData as *_wMeasurements.mat files. If not there, run it.
+whiskerFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
+    {'*_wMeasurements.mat'},'UniformOutput', false); %'*.csv','whiskerTrackingData',
+if isempty(whiskerFiles{:})
     % check other format (e.g., from DLC)
-    whiskerAngleFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
+    whiskerFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
         {'*.csv','whiskerTrackingData'},'UniformOutput', false);
-    whiskerAngleFiles=vertcat(whiskerAngleFiles{~cellfun('isempty',whiskerAngleFiles)});
-    whiskerAngleFiles=whiskerAngleFiles(~cellfun(@(flnm) contains(flnm,{'trial';'analysis'}),...
-    {whiskerAngleFiles.name}));
-    if ~isempty(whiskerAngleFiles)
+    whiskerFiles=vertcat(whiskerFiles{~cellfun('isempty',whiskerFiles)});
+    whiskerFiles=whiskerFiles(~cellfun(@(flnm) contains(flnm,{'trial';'analysis'}),...
+    {whiskerFiles.name}));
+    if ~isempty(whiskerFiles)
         ConvertWhiskerData;
-        whiskerAngleFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
-            {'*whiskerangle.mat'},'UniformOutput', false); %'*.csv','whiskerTrackingData',
+        whiskerFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
+            {'*_wMeasurements.mat'},'UniformOutput', false); %'*.csv','whiskerTrackingData',
     else
-        %% ASK location
+        %% Ask location
         disp('no whisker tracking file')
-        return
+        [whiskerFiles,whiskerFilesPath] = uigetfile({'*.mat';'*.*'},...
+            'Select the whisker tracking file',startingDir,'MultiSelect','on');
+        if ~isempty(whiskerFiles)
+            if ~iscell(whiskerFiles); whiskerFiles={whiskerFiles}; end
+            whiskerFiles=cellfun(@(fName) fullfile(whiskerFilesPath,fName), whiskerFiles);
+        else
+            return
+        end
     end
 end
-whiskerAngleFiles=vertcat(whiskerAngleFiles{~cellfun('isempty',whiskerAngleFiles)});
-% velocity 
-whiskerVelocityFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
-    {'*whiskervelocity.mat'},'UniformOutput', false);
-whiskerVelocityFiles=vertcat(whiskerVelocityFiles{~cellfun('isempty',whiskerVelocityFiles)});
-% phase
-whiskerPhaseFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
-    {'*whiskerphase.mat'},'UniformOutput', false);
-whiskerPhaseFiles=vertcat(whiskerPhaseFiles{~cellfun('isempty',whiskerPhaseFiles)});
+whiskerFiles=vertcat(whiskerFiles{~cellfun('isempty',whiskerFiles)});
+% % velocity 
+% whiskerVelocityFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
+%     {'*whiskervelocity.mat'},'UniformOutput', false);
+% whiskerVelocityFiles=vertcat(whiskerVelocityFiles{~cellfun('isempty',whiskerVelocityFiles)});
+% % phase
+% whiskerPhaseFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
+%     {'*whiskerphase.mat'},'UniformOutput', false);
+% whiskerPhaseFiles=vertcat(whiskerPhaseFiles{~cellfun('isempty',whiskerPhaseFiles)});
 
 %% TTL files (other than sync to video, e.g., laser)
 TTLFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
@@ -107,13 +114,11 @@ videoSyncInfoFiles=vertcat(videoSyncInfoFiles{~cellfun('isempty',videoSyncInfoFi
 %% Decide which file to use
 % Keep only the most recent data file
 allDataFiles=struct('spikeSortingFiles',spikeSortingFiles,...
-    'dataFiles',dataFiles,'infoFiles',infoFiles,...
+    'ephysFiles',ephysFiles,'infoFiles',infoFiles,...
     'TTLFiles',TTLFiles,...
     'videoFrameTimeFiles',videoFrameTimeFiles,...
     'videoSyncInfoFiles',videoSyncInfoFiles,...
-    'whiskerAngleFiles',whiskerAngleFiles,...
-    'whiskerVelocityFiles',whiskerVelocityFiles,...
-    'whiskerPhaseFiles',whiskerPhaseFiles);
+    'whiskerFiles',whiskerFiles);
 adf_fn=fields(allDataFiles);
 for dataFileNum=1:numel(adf_fn)
     [~,dateSort]=sort({allDataFiles.(adf_fn{dataFileNum}).date});

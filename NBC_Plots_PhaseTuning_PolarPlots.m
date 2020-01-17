@@ -101,11 +101,12 @@ for unitNum=1:size(spikeRate,1)
         'EdgeColor',phEdgeColor,'FaceColor',phFaceColor,...
         'EdgeAlpha',0);
     paH = gca;
-    % For Kyle's convention: 
     paH.ThetaZeroLocation='left';
-    paH.ThetaDir = 'clockwise';
-        paH.ThetaTickLabel={'mP','','','P','','',...
+    paH.ThetaTickLabel={'mP','','','P','','',...
         'mR','','','R','',''};
+    paH.ThetaDir = 'counterclockwise';
+    % For Kyle's convention: 
+%     paH.ThetaDir = 'clockwise';
 %     paH.ThetaTickLabel={'Protracted','','','Protraction','','',...
 %         'Retracted','','','Retraction','',''};
 end

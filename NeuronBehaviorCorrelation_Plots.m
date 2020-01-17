@@ -13,13 +13,15 @@ end
 if exist('ue','var')
     % extract data from ue object 
     [ephys,behav]=GetData_From_UnitExplorer(ue);
-    ephys.rasters=ephys.spikeRasters;
-    ephys=rmfield(ephys,'spikeRasters');
+    ephys.rasters=ephys.spikeRasters; ephys=rmfield(ephys,'spikeRasters');
     ephys.spikeRate=EphysFun.MakeSDF(ephys.rasters);
+    ephys.rasters=logical(sum([ephys.rasters(1:2:end);ephys.rasters(2:2:end)]));
     ephys.spikeRate=decimate(ephys.spikeRate,2);
+    ephys.selectedUnits=1;
+    ephys.recInfo.sessionName=ue.sessionName;
     whiskerAngle=behav.angle;
     whiskerVelocity=behav.velocity; 
-    whiskerPhase=behav.phase; 
+    whiskerPhase=-behav.phase; 
     % Convention here: 
     %   Max protraction: 0 Max retraction pi/-pi
     %   (countercycle and -pi as compared to Kleinfeld et al.'s convention, where 
@@ -31,13 +33,16 @@ else
 %         save([ephys.recInfo.sessionName '_processedData'],'ephys','behav','pulses','-v7.3');
     end
     %% whisking data
-    whiskerAngle=behav.whiskerTrackingData.angle.whiskerAngle;
-    whiskerVelocity=behav.whiskerTrackingData.velocity.whiskerVelocity;
-    whiskerPhase=behav.whiskerTrackingData.phase.whiskerPhase;
-    if max(whiskerPhase)<=pi
-        %to conform with Kyle's convention, for now
-        whiskerPhase=-whiskerPhase;
-    end
+    whiskerAngle=behav.whiskerTrackingData.Angle_f;
+    whiskerVelocity=behav.whiskerTrackingData.Velocity;
+    whiskerPhase=behav.whiskerTrackingData.Phase;
+    whiskerAmplitude=behav.whiskerTrackingData.Amplitude;
+    whiskerFrequency=behav.whiskerTrackingData.Freq;
+    
+    %If conforming to Kyle's convention
+%     if max(whiskerPhase)<=pi
+%         whiskerPhase=-whiskerPhase;
+%     end
     %% compute rasters
     % aim for same length for ephys traces and behavior data
     [ephys.rasters,unitList]=EphysFun.MakeRasters(ephys.spikes.times,ephys.spikes.unitID,...
@@ -56,7 +61,7 @@ else
 end
 
 % make sure behavior and spike traces have same length
-if size(ephys.spikeRate,2)~=size(whiskerAngle,1)
+if size(ephys.spikeRate,2)~=numel(whiskerAngle)
     % check what's up
     if size(ephys.spikeRate,2)<size(whiskerAngle,1)
         whiskerAngle=whiskerAngle(1:size(ephys.spikeRate,2),:);
@@ -69,11 +74,12 @@ if size(ephys.spikeRate,2)~=size(whiskerAngle,1)
 end
 
 %% decide which units to keep: 
-% keepUnits=unitList; %all units 
+
 mostFrqUnits=EphysFun.FindBestUnits(ephys.spikes.unitID,3);%keep ones over x% spikes
 keepUnits=ismember(unitList,mostFrqUnits);
 keepTraces=unique(ephys.spikes.preferredElectrode(ismember(ephys.spikes.unitID,unitList(keepUnits))));
-ephys.selectedUnits=keepUnits;
+ephys.selectedUnits=find(keepUnits);
+ephys.selectedUnits=unitList; %all units 
 
 % ephys.spikeRate=ephys.spikeRate(keepUnits,:);
 % ephys.rasters=ephys.rasters(keepUnits,:);
@@ -85,23 +91,25 @@ ephys.selectedUnits=keepUnits;
 
 %% whisking epochs (based on first trace, if multiple whisker tracked)
 ampThd=18; %amplitude threshold
+freqThld=1; %frequency threshold
 minBoutDur=1000; % minimum whisking bout duration: 1s
-whiskingEpochs=WhiskingFun.FindWhiskingEpochs(whiskerAngle(:,1),...
-                                        whiskerPhase(:,1),...
-                                        ampThd, minBoutDur); 
+whiskingEpochs=WhiskingFun.FindWhiskingEpochs(...
+   whiskerAmplitude(1,:),whiskerFrequency(1,:),...
+   ampThd, freqThld, minBoutDur); 
 whiskingEpochs(isnan(whiskingEpochs))=false; %just in case
 figure; hold on;
 plot(whiskerAngle); plot(whiskingEpochs*std(whiskerAngle)+mean(whiskerAngle))
 plot(whiskerPhase*std(whiskerAngle)/2+mean(whiskerAngle));
+
+%% Check Phototagging summary 
+ephys.selectedUnits=9; %keepUnits;
+PhotoTagPlots(ephys,pulses);
+
 %% Is it tuned to Phase? Polar plot summary
 phaseTuning=NBC_Plots_PhaseTuning_PolarPlots(whiskerPhase',...%whiskingPhase',...
     whiskingEpochs,ephys.spikeRate(ephys.selectedUnits,:),false,ephys.recInfo.sessionName); %ephys.spikeRate
 
-%% Compare with Phototagged summary 
-ephys.selectedUnits=9; %keepUnits;
-PhotoTagPlots(ephys,pulses);
-
-%% Phase tuning - Indivual plots
+%% Phase tuning - Individual plots
 phaseTuning=NBC_Plots_PhaseTuning(whiskerAngle',whiskerPhase',ephys,whiskingEpochs,false); %ephys.spikeRate
 
 %% whisking vs spikes plot

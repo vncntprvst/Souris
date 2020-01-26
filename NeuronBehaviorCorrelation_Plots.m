@@ -33,12 +33,18 @@ else
 %         save([ephys.recInfo.sessionName '_processedData'],'ephys','behav','pulses','-v7.3');
     end
     %% whisking data
-    whiskerAngle=behav.whiskerTrackingData.Angle_f;
+    whiskerAngle=behav.whiskerTrackingData.Angle; %whiskerAngle=fillmissing(behav.whiskerTrackingData.Angle_BP,'nearest');
     whiskerVelocity=behav.whiskerTrackingData.Velocity;
     whiskerPhase=behav.whiskerTrackingData.Phase;
     whiskerAmplitude=behav.whiskerTrackingData.Amplitude;
-    whiskerFrequency=behav.whiskerTrackingData.Freq;
-    
+%     whiskerFrequency=behav.whiskerTrackingData.Freq;
+    whiskerSetPoint=behav.whiskerTrackingData.SetPoint;
+    %% compute whisking frequency (different from instantaneous frequency
+    whisksIdx = bwconncomp(diff(whiskerPhase)>0);
+    peakIdx = zeros(1,length(whiskerVelocity));
+    peakIdx(cellfun(@(whisk) whisk(1), whisksIdx.PixelIdxList))=1;
+    whiskerFrequency=movsum(peakIdx,behav.whiskerTrackingData.samplingRate);
+
     %If conforming to Kyle's convention
 %     if max(whiskerPhase)<=pi
 %         whiskerPhase=-whiskerPhase;
@@ -46,7 +52,7 @@ else
     %% compute rasters
     % aim for same length for ephys traces and behavior data
     [ephys.rasters,unitList]=EphysFun.MakeRasters(ephys.spikes.times,ephys.spikes.unitID,...
-        ephys.spikes.samplingRate,size(whiskerAngle,1)); %int32(size(ephys.traces,2)/ephys.spikes.samplingRate*1000));
+        ephys.spikes.samplingRate,size(whiskerAngle,2)); %int32(size(ephys.traces,2)/ephys.spikes.samplingRate*1000));
     %% compute spike density functions
     ephys.spikeRate=EphysFun.MakeSDF(ephys.rasters);
     % ephys.spikeRate=decimate(ephys.spikeRate,2);
@@ -60,34 +66,54 @@ else
 %     ue.SaveObject(pathMainFolder);
 end
 
+%% define figure colormap
+cmap=lines;cmap=[cmap(1:7,:);(lines+flipud(copper))/2;autumn];
+
 % make sure behavior and spike traces have same length
 if size(ephys.spikeRate,2)~=numel(whiskerAngle)
     % check what's up
-    if size(ephys.spikeRate,2)<size(whiskerAngle,1)
-        whiskerAngle=whiskerAngle(1:size(ephys.spikeRate,2),:);
-        whiskerVelocity=whiskerVelocity(1:size(ephys.spikeRate,2),:);
-        whiskerPhase=whiskerPhase(1:size(ephys.spikeRate,2),:);
+    if size(ephys.spikeRate,2)<size(whiskerAngle,2)
+        whiskerAngle=whiskerAngle(:,1:size(ephys.spikeRate,2));
+        whiskerVelocity=whiskerVelocity(:,1:size(ephys.spikeRate,2));
+        whiskerPhase=whiskerPhase(:,1:size(ephys.spikeRate,2));
+        whiskerAmplitude=whiskerAmplitude(:,1:size(ephys.spikeRate,2));
+        whiskerFrequency=whiskerFrequency(:,1:size(ephys.spikeRate,2));
+        whiskerSetPoint=whiskerSetPoint(:,1:size(ephys.spikeRate,2));
     else
-        ephys.spikeRate=ephys.spikeRate(:,1:size(whiskerAngle,1));
-        ephys.rasters=ephys.rasters(:,1:size(whiskerAngle,1));
+        ephys.spikeRate=ephys.spikeRate(:,1:length(whiskerAngle));
+        ephys.rasters=ephys.rasters(:,1:length(whiskerAngle));
     end
 end
 
 %% decide which units to keep: 
-
-mostFrqUnits=EphysFun.FindBestUnits(ephys.spikes.unitID,3);%keep ones over x% spikes
+%most frequent
+mostFrqUnits=EphysFun.FindBestUnits(ephys.spikes.unitID,1);%keep ones over x% spikes
 keepUnits=ismember(unitList,mostFrqUnits);
 keepTraces=unique(ephys.spikes.preferredElectrode(ismember(ephys.spikes.unitID,unitList(keepUnits))));
 ephys.selectedUnits=find(keepUnits);
+%all of them
 ephys.selectedUnits=unitList; %all units 
+% only SU
+[unitQuality,RPVIndex]=SSQualityMetrics(ephys.spikes);
+unitQuality=[unique(ephys.spikes.unitID),unitQuality];
+unitIdx=ismember(ephys.spikes.unitID,unitQuality(unitQuality(:,2)>0.6,1));
+unitQuality(unitQuality(:,2)>0.6,3)=hist(ephys.spikes.unitID(unitIdx),unique(ephys.spikes.unitID(unitIdx)))/sum(unitIdx);
+qualityUnits=unitQuality(unitQuality(:,2)>0.6 & unitQuality(:,3)>0.01,:);
+ephys.selectedUnits=qualityUnits(:,1);
+% plot ACG and ISI
+figure;
+for unitNum=1:numel(ephys.selectedUnits) %ephys.selectedUnits
+    acgH=subplot(numel(ephys.selectedUnits),3,unitNum*3-2);
+    EphysFun.PlotACG(ephys.spikes.unitID,ephys.spikes.times,ephys.selectedUnits(unitNum),...
+        ephys.spikes.samplingRate,acgH,cmap)
+    isiH=subplot(numel(ephys.selectedUnits),3,unitNum*3-1:unitNum*3);
+    EphysFun.PLotISI(ephys.spikes.unitID,ephys.spikes.times,ephys.selectedUnits(unitNum),...
+        ephys.spikes.samplingRate,isiH,cmap)
+end
+% only + PT (see below for PT)
 
-% ephys.spikeRate=ephys.spikeRate(keepUnits,:);
-% ephys.rasters=ephys.rasters(keepUnits,:);
-% keepUnits{1}=ismember(unitList,mostFrqUnits); % most numerous units
-% keepUnits{2}=~isnan(phaseTuning(:,1)); % phase tuned units
-% % restrict to selected units
-% ephys.rasters{1}=ephys.rasters(keepUnits{1},:);
-% ephys.rasters{2}=ephys.rasters(keepUnits{2},:);
+%% may try to clean up RPVs
+% FixRPV(ephys.spikes,RPVIndex);
 
 %% whisking epochs (based on first trace, if multiple whisker tracked)
 ampThd=18; %amplitude threshold
@@ -98,19 +124,42 @@ whiskingEpochs=WhiskingFun.FindWhiskingEpochs(...
    ampThd, freqThld, minBoutDur); 
 whiskingEpochs(isnan(whiskingEpochs))=false; %just in case
 figure; hold on;
-plot(whiskerAngle); plot(whiskingEpochs*std(whiskerAngle)+mean(whiskerAngle))
-plot(whiskerPhase*std(whiskerAngle)/2+mean(whiskerAngle));
+plot(whiskerAngle); plot(whiskingEpochs*nanstd(whiskerAngle)+nanmean(whiskerAngle))
+plot(whiskerPhase*nanstd(whiskerAngle)/2+nanmean(whiskerAngle));
+
+
+%% whisking mode 
+% Four main modes:
+% foveal: high frequency > 10Hz, medium amplitude >25 <35, high setpoint/angular values >70 at start of whisk
+% exploratory: lower frequency < 10, high amplitude >35, medium setpoint/angular values ?
+% resting: lower frequency < 10Hz, low/medium amplitude <25, low setpoint/angular values <60
+% twiches: high frequency > 25Hz, low amplitude <10, low setpoint/angular values <70 at start of whisk
+whiskingEpochs=WhiskingFun.FindWhiskingModes(whiskerAngle,whiskerVelocity,whiskerAmplitude,whiskerFrequency,whiskerSetPoint);
+figure; hold on
+plot(whiskerAngle)
+for wModeNum=1:numel(whiskingEpochs)
+    whiskModeVals=nan(size(whiskerAngle));
+    whiskModeVals(whiskingEpochs(wModeNum).index)=whiskerAngle(whiskingEpochs(wModeNum).index);
+    plot(whiskModeVals);
+end
+legend('angle',whiskingEpochs.type)
+
+%% Overview plot
+NBC_Plots_Overview(whiskerAngle,whiskerPhase,whiskerSetPoint,ephys,false);
 
 %% Check Phototagging summary 
-ephys.selectedUnits=9; %keepUnits;
 PhotoTagPlots(ephys,pulses);
+PTunits=[7];
 
 %% Is it tuned to Phase? Polar plot summary
 phaseTuning=NBC_Plots_PhaseTuning_PolarPlots(whiskerPhase',...%whiskingPhase',...
     whiskingEpochs,ephys.spikeRate(ephys.selectedUnits,:),false,ephys.recInfo.sessionName); %ephys.spikeRate
 
 %% Phase tuning - Individual plots
-phaseTuning=NBC_Plots_PhaseTuning(whiskerAngle',whiskerPhase',ephys,whiskingEpochs,false); %ephys.spikeRate
+phaseTuning=NBC_Plots_PhaseTuning(whiskerAngle,whiskerAngle,ephys,whiskingEpochs,false); %ephys.spikeRate
+
+%% Phase tuning - Individual plots
+phaseTuning=NBC_Plots_PhaseTuning(whiskerAngle,ephys,whiskingEpochs,false); %ephys.spikeRate
 
 %% whisking vs spikes plot
 % whiskerTraces_whiskFreq=whiskerAngle; %WhiskingFun.BandPassBehavData(whiskerAngle,1000,[4 10]);
@@ -128,22 +177,82 @@ NBC_Plots_WhiskingPhaseVideoFrame(whiskerAngle,vidTimes,...
 NBC_Plots_SpikesWhiskingOverlayOnVideo(whiskerAngle,vidTimes,...
     ephys.rasters,ephys.spikeRate); %cursor_1,cursor_2
 
+%% Power spectrum and coherence
+unitNum=15;
+fs = 1000; winL= 2000; overlapL= 1900; % nsc = floor(numel(whiskerAngle_m)/4.5); nov = floor(nsc/2);
 
+whiskerAngle_m=fillmissing(whiskerAngle,'nearest');
+wspectrumVals=spectrogram(whiskerAngle_m,winL,overlapL,[],fs,'yaxis');
+wspectrumVals=abs(wspectrumVals);
+wf_wps=sum(wspectrumVals(1:15,:)); %power spectrum at whisker frequency range
+figure; axis2=subplot(2,1,1); hold on
+plot(wf_wps)
+%plot whisking epochs
+misTvalSize=mod(numel(whiskingEpochs),numel(wf_wps));
+epochTarray=linspace(1,numel(wf_wps),numel(whiskingEpochs)-misTvalSize);
+epochVarray=whiskingEpochs(misTvalSize/2+1:end-misTvalSize/2)*nanstd(wf_wps)+nanmean(wf_wps);
+plot(epochTarray,epochVarray,'r','linewidth',1.5)
+xlabel('Whisking power spectrum')
 
+for unitNum=1:numel(ephys.selectedUnits)
+    unitRasters=ephys.rasters(ephys.selectedUnits(unitNum),:);
+    spectrumVals_s=spectrogram(unitRasters,winL,overlapL,[],fs,'yaxis');
+    spectrumVals_s=abs(spectrumVals_s);
+    sum_spectrumVals_s(unitNum,:)=sum(spectrumVals_s(1:15,:));
+end
+wf_sps=mean(sum_spectrumVals_s([7,10,12,13,15],:)); %sum(sspectrumVals(1:15,:)); %power spectrum at whisker frequency range
+axis1=subplot(2,1,2);  hold on
+plot(wf_sps)
+epochVarray=whiskingEpochs(misTvalSize/2+1:end-misTvalSize/2)*nanstd(wf_sps)+nanmedian(wf_sps);
+plot(epochTarray,epochVarray,'r','linewidth',1.5)
+xlabel('Spiking power spectrum')
+linkaxes([axis1,axis2],'x')
 
+figure; %imagesc(sspectrumVals)
+spectrogram(unitRasters,winL,overlapL,[],fs,'yaxis');
+set(gca,'ylim',[1 30]); %'YDir','normal'); 
+caxis([-60 -25]);hold on
+epochTarray=linspace(1,max(get(gca,'xlim')),numel(whiskingEpochs));
+epochVarray=whiskingEpochs*30;
+plot(epochTarray,epochVarray,'r','linewidth',1.5)
 
+% coherence within each whisking epoch
+whiskerPhase_m=fillmissing(whiskerPhase,'nearest');
+whiskBoutList = bwconncomp(whiskingEpochs) ; 
+durationThd=cellfun(@(x) length(x),whiskBoutList.PixelIdxList)>4000; %keep only whisking bouts longer than 4s 
+whiskBoutList.PixelIdxList=whiskBoutList.PixelIdxList(durationThd);
+whiskBoutList.NumObjects=sum(durationThd);
+figure('color','w','name','Spike / Angle Coherence','position',[1000 70 400 1200]); hold on
+histHand = gobjects(2,whiskBoutList.NumObjects);
+cxy=nan(257,whiskBoutList.NumObjects);
+binNum=10; shiftF=0.6;
+for wEpoch=whiskBoutList.NumObjects:-1:1
+    signalVals=whiskerPhase_m(whiskBoutList.PixelIdxList{wEpoch}); %whiskerAngle_m whiskerPhase_m
+    signalVals=signalVals-mean(signalVals);
+%     signalVals=detrend(unwrap(signalVals))-mean(detrend(unwrap(signalVals)));
+    cxy(:,wEpoch)=mscohere(unitRasters(whiskBoutList.PixelIdxList{wEpoch}),...
+        signalVals,500,250,[],fs);
+    freqVals=linspace(0,fs/2,numel(cxy(:,wEpoch)));
+    xVals = [freqVals freqVals(end) 0]; 
+    yVals = [cxy(:,wEpoch)',0,0]; 
+    fill(gca,xVals,yVals+(wEpoch*shiftF)-1,cmap(wEpoch,:),'FaceAlpha',0.4,'EdgeColor','w','LineWidth',1);
+end
+% delete(histHand)
+set(gca,'xlim',[0 50],'ytick',(shiftF:shiftF:(shiftF*whiskBoutList.NumObjects))-0.5,...
+    'ylim',[-0.5 whiskBoutList.NumObjects*shiftF],'yticklabel',1:whiskBoutList.NumObjects,...
+    'tickdir','out','box','off','XGrid', 'on');
+ylabel('Whisking epoch')
+xlabel('Frequency (Hz)')
+title('Spike / Phase Magnitude-squared Coherence')
+% legend(num2str((1:whiskBoutList.NumObjects)'))
 
-% figure; hold on
-% % plot(periodBehavData(1,:))
-% % plot(LP_periodBehavData(1,:))
-% plot(whiskerTraces_whiskFreq(1,:))
-% % plot(HP_periodBehavData(1,:))
-% plot(whiskingPhase(1,:))
-% plot(whiskerTraces_breathFreq(1,:))
+%ridge plot
+lgd=mat2cell(num2str((1:whiskBoutList.NumObjects)'),ones(whiskBoutList.NumObjects,1),2);
+ridgeplot(mat2cell(cxy',ones(whiskBoutList.NumObjects,1),257),binNum,[0 0.2],lgd,cmap)
 
 % parameters for coherence computation
 params.Fs=1000; % sampling frequency
-params.fpass=[4 20]; %peakWhiskFreq; % band of frequencies to be kept
+params.fpass=[4 30]; % % band of frequencies to be kept
 params.tapers=[2 3]; % taper parameters (corresponds to  % time-bandwidth product of 2: NW=2 [NW 2*NW-1]
 params.pad=1; % pad factor for fft
 params.err=[2 0.05];
@@ -153,40 +262,11 @@ CHRONUXGPU = 1;
         
 for unitNum=1:size(ephys.rasters,1)
     for whiskNum=1 %:size(whiskerTraces_whiskFreq,1)
-        %% Find whisking periods of at least 500ms
-        % peakWhisking=WhiskingFun.FindWhiskingBouts(periodBehavData(1,:));
-        % peakWhiskingIdx=find(peakWhisking(1,:)==max(peakWhisking(1,:)));
-        [whiskingEpochsIdx,wAmplitude,setPoint]=WhiskingFun.FindWhiskingEpochs(...
-            whiskerTraces_whiskFreq(:,whiskNum)',whiskerPhase(:,whiskNum)',500);
-        % plot(whiskingEpochsIdx*50)
-        if sum(whiskingEpochsIdx)==0
-            continue
-        else
-            whiskingEpochs=whiskingEpochsIdx;
-        %restrict to first 90s
-        % whiskingEpochs(90000:end)=0;
-        end
-        %% find peak whisking frequency
-        whiskFreqSpectrum=abs(fft(whiskerTraces_whiskFreq(whiskNum,whiskingEpochs)));
-        numVals=numel(whiskerTraces_whiskFreq(whiskNum,whiskingEpochs));
-        whiskFreqSpectrum = smoothdata(whiskFreqSpectrum(1:floor(numVals/2)+1),...
-            'movmean',round(numel(whiskFreqSpectrum)/2/200));
-        % peakWhiskFreq(2:end-1) = 2*peakWhiskFreq(2:end-1);
-        freqArray = 1000*(0:(numVals/2))/numVals;
-%       figure;  plot(freqArray,whiskFreqSpectrum)
-        % title('Single-Sided Amplitude Spectrum of X(t)')
-        peakWhiskFreq=freqArray(whiskFreqSpectrum==max(whiskFreqSpectrum));
-
-        %% agregate whisker motion components
-        whiskerMotion=[whiskerPhase(whiskNum,:)',wAmplitude',setPoint'];
         %% Coherence
-        % we want the coherence at the peak frequency
-
         try
         [Coherence,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpb(...
-            whiskerTraces_whiskFreq(whiskNum,whiskingEpochs)',ephys.rasters(unitNum,whiskingEpochs)',params);
+            whiskerAngle_m(whiskNum,whiskingEpochs)',ephys.rasters(unitNum,whiskingEpochs)',params);
         
-%         smoothedCoherence=smoothdata(Coherence(:,1),'movmean',round(length(Coherence(:,1))/diff(params.fpass)));
 figure; hold on 
 plot(sgFreq,Coherence)
 % plot(sgFreq,smoothedCoherence)
@@ -217,12 +297,15 @@ end
 
 
  %% get average waveform
-    avWaveform=nan(numel(bestUnits), size(ephys.spikes.waveforms,2));
-    %     figure; hold on
+    avWaveform=nan(numel(ephys.selectedUnits), size(ephys.spikes.waveforms,2));
+    figure; hold on
     for unitNum=1:numel(bestUnits)
-        avWaveform(unitNum,:)=nanmean(ephys.spikes.waveforms(...
-            ephys.spikes.unitID==bestUnits(unitNum),:));
-        %         plot(avWaveform(unitNum,:))
+            avWaveform=nan(7, size(ephys.spikes.waveforms,2));
+        for profileNum=1:9
+            avWaveform(profileNum,:)=nanmean(ephys.spikes.waveforms(...
+                ephys.spikes.unitID==ephys.selectedUnits(unitNum),:,profileNum));
+            plot(avWaveform(profileNum,:))
+        end
     end
     % neuron with biggest waveform
     biggestUnit=sum(abs(diff(avWaveform,[],2)),2)==max(sum(abs(diff(avWaveform,[],2)),2));

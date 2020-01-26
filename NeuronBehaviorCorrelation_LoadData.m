@@ -31,7 +31,7 @@ end
 
 %% Get some info about the recording if possible
 recInfoFile=cellfun(@(flnm) contains(flnm,'Info'),allDataFiles);
-if ~isempty(recInfoFile)
+if any(recInfoFile)
     recInfo=load(allDataFiles{recInfoFile});
     recInfo=recInfo.(cell2mat(fields(recInfo)));
 else
@@ -52,6 +52,16 @@ if ~isfield(recInfo,'sessionName')
     end
 end
 
+%% load probe file
+probeFile=cellfun(@(flnm) contains(flnm,'prb'),allDataFiles);
+if any(probeFile)
+    fid  = fopen(allDataFiles{probeFile},'r');
+        probeParams=fread(fid,'*char')';
+    fclose(fid);
+recInfo.channelMap = str2num(regexp(probeParams,'(?<=channels = [).+?(?=])','match','once'));
+recInfo.probeGeometry = str2num(regexp(probeParams,'(?<=geometry = [).+?(?=])','match','once'))';
+end
+
 if isfield(recInfo,'exportedChan');    numElectrodes=numel(recInfo.exportedChan);
 elseif isfield(recInfo,'numRecChan');    numElectrodes=recInfo.numRecChan; 
 else
@@ -60,6 +70,12 @@ else
     numElectrodes = str2double(cell2mat(inputdlg(prompt,dlg_title,num_lines,defaultans)));
 end
 if numElectrodes==35; numElectrodes=32; end %Disregard eventual AUX channels
+
+if ~isfield(recInfo,'channelMap') 
+    disp(mfilename('fullpath'));
+    disp('assuming channels have been remapped already')
+    recInfo.channelMap = 1:numElectrodes;
+end
 
 %% Load recording traces
 recDataFile=cellfun(@(flnm) contains(flnm,'rec.'),allDataFiles);
@@ -71,7 +87,13 @@ try
 catch
     allTraces=reshape(allTraces',[recDuration numElectrodes]);
 end
-filterTraces=true; %Might change that in case traces have already been filtered
+%   %alternatively (equivalent):
+%     traceFile = fopen(allDataFiles{recDataFile}, 'r');
+%     allTraces = fread(traceFile,[numElectrodes,Inf],'int16');
+%     fclose(traceFile);
+
+allTraces=allTraces(recInfo.channelMap,:);
+
 if isfield(recInfo,'samplingRate')
     samplingRate=recInfo.samplingRate;
 else
@@ -80,14 +102,22 @@ else
     samplingRate = str2double(cell2mat(inputdlg(prompt,dlg_title,num_lines,defaultans)));
 end
 
+filterTraces=true; %Might change that in case traces have already been filtered    
 %% Filter traces if needed
 if filterTraces == true
-    allTraces=FilterTrace(allTraces,samplingRate);
+    preprocOption={'CAR','all'};
+    allTraces=PreProcData(allTraces,samplingRate,preprocOption);
+% allTraces=FilterTrace(allTraces,samplingRate);
 end
+
+% figure; hold on;
+% for chNum=1:16
+%     plot(allTraces(chNum,1:6000)+(chNum-1)*max(max(allTraces(:,1:6000)))*2,'k')
+% end
 
 %% Load spike data 
 spikeDataFile=cellfun(@(flnm) contains(flnm,'spikes'),allDataFiles);
-spikes=LoadSpikeData(allDataFiles{spikeDataFile},traces);
+spikes=LoadSpikeData(allDataFiles{spikeDataFile},allTraces);
 % check information
 if isfield(spikes,'samplingRate') 
     if isempty(spikes.samplingRate)
@@ -204,7 +234,7 @@ spikeReIndex=spikes.times>=vidTimes(1)*recInfo.SRratio &...
              spikes.times<=vidTimes(end)*recInfo.SRratio;
 spkFld=fieldnames(spikes);
 for spkFldNum=1:numel(spkFld)
-    try spikes.(spkFld{spkFldNum})=spikes.(spkFld{spkFldNum})(spikeReIndex,:);catch; end
+    try spikes.(spkFld{spkFldNum})=spikes.(spkFld{spkFldNum})(spikeReIndex,:,:);catch; end
 end %was spikeReIndex,:
 %same for TTLs (alrteady in ms resolution)
 TTLReIndex=TTLTimes(1,:)>=vidTimes(1) &...

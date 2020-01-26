@@ -1,4 +1,4 @@
-function phaseTuning=NBC_Plots_PhaseTuning(whiskerAngle,whiskerPhase,ephysData,dataMask,saveFig)
+function phaseTuning=NBC_Plots_AngleTuning(whiskerAngle,ephysData,dataMask,saveFig)
 % whiskingPhase in radians
 % spikeRate in Hz
 % Kyle's plot adapted from UnitExplorer GetTuning
@@ -36,7 +36,7 @@ if false
     for whiskCycle=1:numel(whiskList)
         peakWhiskIdx=ptWhisks.PixelIdxList{whiskList(whiskCycle)}(1);
         %     if whiskCycle>1
-        wCycleSIdx=peakWhiskIdx-find(whiskerPhase(peakWhiskIdx-1:-1:1)>0,1)+1;
+        wCycleSIdx=peakWhiskIdx-find(whiskerAngle(peakWhiskIdx-1:-1:1)>0,1)+1;
         %     else
         %         wCycleSIdx=peakWhiskIdx-find(whiskerPhase(peakWhiskIdx-1:-1:1)<0,1,'last'); %should be one
         %     end
@@ -44,7 +44,7 @@ if false
             wCycleEIdx=ptWhisks.PixelIdxList{whiskList(whiskCycle)}(end);
             [cycleAngle{whiskCycle},phaseValues]=...
                 resample(whiskerAngle(wCycleSIdx:wCycleEIdx),...
-                whiskerPhase(wCycleSIdx:wCycleEIdx));
+                whiskerAngle(wCycleSIdx:wCycleEIdx));
             cycleAngle{whiskCycle} = interp1(phaseValues,cycleAngle{whiskCycle},linspace(-pi,pi,100));
             %normalize
             cycleAngle{whiskCycle} =rescale(cycleAngle{whiskCycle});
@@ -69,7 +69,7 @@ for unitNum=1:size(spikeRasters,1)
     title(['Unit ' num2str(ephysData.selectedUnits(unitNum))]);
     for wEpochNum=1:numWepochs
         eWhiskerAngle=whiskerAngle(wEpochs.PixelIdxList{wEpochNum});
-        eWhiskerPhase=whiskerPhase(wEpochs.PixelIdxList{wEpochNum});
+        eWhiskerPhase=whiskerAngle(wEpochs.PixelIdxList{wEpochNum});
         
 %         ptWhisks=bwconncomp(eWhiskerPhase>0);
         %% probability density function of phase for spiking events
@@ -113,9 +113,9 @@ for unitNum=1:size(spikeRasters,1)
             subplot(4,numWepochs,numWepochs+wEpochNum); hold on
             plot(centers,spikePhasePDF,'linewidth',1.2,'Color', [0 0 0]);
             plot(centers,phasePDF,'linewidth',1.2,'Color', [0 0 0 0.5]);
-            set(gca,'ytick',0:0.05:1,...
-                'xlim',[-pi pi],'xtick',[-pi 0 pi],'xticklabel',{'0','\pi','2\pi'},...
-                'tickdir','out'); %'ylim',[0 0.1]
+%             set(gca,'ytick',0:0.05:1,...
+%                 'xlim',[-pi pi],'xtick',[-pi 0 pi],'xticklabel',{'0','\pi','2\pi'},...
+%                 'tickdir','out'); %'ylim',[0 0.1]
 %             ylabel('Probability density')
             
             %plot spike rate
@@ -166,7 +166,7 @@ for unitNum=1:size(spikeRasters,1)
             ylim([0 yl(2)]);
             set(gca,'TickDir','out')
             box off
-            xlim([-pi pi])
+%             xlim([-pi pi])
             % set(gca,'xdir', 'reverse'); %, 'ydir', 'reverse')
             %% convert to thetas: make as many phase # as FR for that phase #
             thetas=cell(numel(centers),1);

@@ -6,8 +6,8 @@ cmap=[cmap(1:7,:);(lines+flipud(copper))/2;autumn];
     sigma=2; %2ms smoothing
     sizeK = 6*sigma;
     
-whiskingVelocity=diff(whiskingAngle);
-whiskingVelocity=[whiskingVelocity(1);whiskingVelocity];
+% whiskingVelocity=diff(whiskingAngle);
+% whiskingVelocity=[whiskingVelocity(1);whiskingVelocity];
 whiskingAngle=whiskingAngle(whiskingEpochsIdx);
 whiskingVelocity=whiskingVelocity(whiskingEpochsIdx);
 whiskingPhase=whiskingPhase(whiskingEpochsIdx);
@@ -30,7 +30,7 @@ for velCycleNum=1:numel(velCycles)-1
 end
 
 meanWhiskingProfile=mean(whiskingBoutExcerpts); %mean(zscore(whiskingBoutExcerpts,[],2)); %
-figure; plot(meanWhiskingProfile)
+% figure; plot(meanWhiskingProfile)
 
 for cellNum=1:size(spikeRasters,1)
     cellRasters=squeeze(allRasters(cellNum,:,:));

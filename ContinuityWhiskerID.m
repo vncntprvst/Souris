@@ -112,11 +112,18 @@ whiskerTrackingData=cat(3,whiskerTrackingData,[baseXData(:,sortNonNan),baseYData
 whiskerTrackingData=whiskerTrackingData(:,reshape([1:size(baseData,2)/2;...
     size(baseData,2)/2+1:size(baseData,2)],1,size(baseData,2)),:);
 
+else 
+    whiskerTrackingData=cat(3,[centroidXData,centroidYData],[baseXData,baseYData]);
+end
+
 %% plots
 % figure; hold on
 % for whiskBase=1:size(centroidXData,2)
 %     plot(centroidXData(:,whiskBase),centroidYData(:,whiskBase),'.')
 % end
+% ax = gca;
+% ax.YDir = 'reverse';
+% 
 % figure; hold on
 % for whiskBase=contDirection:2:size(baseData,2)
 %     plot(baseData(:,whiskBase))

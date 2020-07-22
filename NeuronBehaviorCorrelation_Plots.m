@@ -162,6 +162,7 @@ PTunits=[12,26,37];
 
 %% make video of whisking bouts
 boutNum=19 ; %19 7
+cellNum=12; %37 26 
 traceIndex=whiskingEpochsList.PixelIdxList{boutNum}; %350000:352000;%whiskingEpochsList.PixelIdxList{2}
 [boutFrames,frameIndex]=WhiskingBoutVideo(ephys.recInfo.likelyVideoFile,ephys.recInfo.dirName,...
     traceIndex,behav.vidTimes,false);
@@ -180,28 +181,49 @@ boutFrames=boutFrames(1:end-numel(extraFrameIdx));
 
 % with trace added
 % add audiovidDims=size(boutFrames(1).cdata);
+spikeTimes = movmean(ephys.rasters(cellNum,traceIndex),2);
+spikeTimes = logical(spikeTimes(1:2:end));
 figure('position',[500 450  vidDims(2) vidDims(1)],'color','k');
-boutFrames=FrameByFrame(boutFrames,whiskerAngle(traceIndex(1:2:end)));
+boutFrames=FrameByFrame_Overlay(boutFrames,[whiskerPhase(traceIndex(1:2:end));spikeTimes]); %whiskerAngle
 
 %add audio for a given cell, given speed
-slowFactor=10;
-cellNum=26;
-wBoutAudio=WhiskingBoutAudio(ephys,cellNum,traceIndex,20*slowFactor);
+slowFactor=20; %500/25
+
+% Code perso
+% wBoutAudio=WhiskingBoutAudio(ephys.rasters(cellNum,traceIndex(1:5000)),1000,20*slowFactor);
+% FacePro
+wBoutAudio = FacePro.MakeSpikeAudio(ephys.rasters(cellNum,traceIndex(1:5000)),...
+    slowFactor*10, [1 2500], 1000);
+% 
+% samplingRatio=round(numel(traceIndex)/numel(boutFrames));
+% wBoutAudio = zeros(200,numel(boutFrames));
+% spikeTimes = round(find(ephys.rasters(cellNum,traceIndex))/samplingRatio);
+% waveforms = gausswin(20); 
+% 
+% for spikeNum = 1 : numel(spikeTimes)
+% %     wBoutAudio(spikeTimes(spikeNum)-4:spikeTimes(spikeNum)+size(waveforms,1)-5) = waveforms;
+%     wBoutAudio(1:20,spikeTimes(spikeNum)) = waveforms;
+% end
+% wBoutAudio = int16(wBoutAudio / max(abs(wBoutAudio(:))) * double(intmax('int16')));
+
+% figure; plot(wBoutAudio)
+% figure; imagesc(wBoutAudio)
 
 %write video
 frameRate=500/slowFactor;
 videoFWriter = vision.VideoFileWriter(fullfile(cd,...
     [ephys.recInfo.likelyVideoFile(1:end-4) '_Bout' num2str(boutNum)...
-    'x' num2str(slowFactor) '_Unit' num2str(cellNum) '.avi']));
+    'x' num2str(slowFactor) '_Unit' num2str(cellNum) '_FP_PhaseTuning.avi']));
 videoFWriter.FrameRate =frameRate ;
 videoFWriter.AudioInputPort = true;
 videoFWriter.VideoCompressor = 'None (uncompressed)'; % 'MJPEG Compressor';
 
-for frameNum = 1 : numel(boutFrames)
-    videoFWriter(boutFrames(frameNum).cdata, wBoutAudio(:,(frameNum*2)-1));
+for frameNum = 1 : 2500 %numel(boutFrames)
+%     videoFWriter(boutFrames(frameNum).cdata, wBoutAudio(:,(frameNum*2)-1));  %if double the number of frames
+    videoFWriter(boutFrames(frameNum).cdata, wBoutAudio(:,frameNum)); %if matrix form factor
+%     videoFWriter(boutFrames(frameNum).cdata, wBoutAudio(frameNum));
 end
 release(videoFWriter);
-
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% WARNING %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Any tuning computation has to be done outside of stimulation periods 

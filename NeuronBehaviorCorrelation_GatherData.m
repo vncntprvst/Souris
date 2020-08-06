@@ -63,7 +63,7 @@ infoFiles=vertcat(infoFiles{~cellfun('isempty',infoFiles)});
 
 %% Probe file (may be needed for channel map, etc)
 probeFiles = cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
-    {'*prb'},'UniformOutput', false);
+    {'*prb','*Probe*'},'UniformOutput', false);
 probeFiles =vertcat(probeFiles{~cellfun('isempty',probeFiles )});
 
 %% Whisker tracking files

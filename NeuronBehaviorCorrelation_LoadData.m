@@ -53,13 +53,21 @@ if ~isfield(recInfo,'sessionName')
 end
 
 %% load probe file
-probeFile=cellfun(@(flnm) contains(flnm,'prb'),allDataFiles);
+probeFile=cellfun(@(flnm) contains(flnm,'prb') || contains(flnm,'Probe') ,allDataFiles);
 if any(probeFile)
-    fid  = fopen(allDataFiles{probeFile},'r');
-        probeParams=fread(fid,'*char')';
-    fclose(fid);
-recInfo.channelMap = str2num(regexp(probeParams,'(?<=channels = [).+?(?=])','match','once'));
-recInfo.probeGeometry = str2num(regexp(probeParams,'(?<=geometry = [).+?(?=])','match','once'))';
+    [~, ~, fExt] = fileparts(allDataFiles{probeFile});
+    switch lower(fExt)
+        case '.mat'
+            load(allDataFiles{probeFile});
+            recInfo.channelMap=chanMap;
+            recInfo.probeGeometry=[xcoords';ycoords'];
+        otherwise  % Under all circumstances SWITCH gets an OTHERWISE!
+            fid  = fopen(allDataFiles{probeFile},'r');
+            probeParams=fread(fid,'*char')';
+            fclose(fid);
+            recInfo.channelMap = str2num(regexp(probeParams,'(?<=channels = [).+?(?=])','match','once'));
+            recInfo.probeGeometry = str2num(regexp(probeParams,'(?<=geometry = [).+?(?=])','match','once'))';
+    end
 end
 
 if isfield(recInfo,'exportedChan');    numElectrodes=numel(recInfo.exportedChan);
@@ -151,7 +159,7 @@ end
 videoFrameTimeFile=cellfun(@(flnm) contains(flnm,'vSyncTTLs'),allDataFiles);
 if any(videoFrameTimeFile)
     syncFile = fopen(allDataFiles{videoFrameTimeFile}, 'r');
-    vFrameTimes = int32(fread(syncFile,'int32')); % VideoFrameTimes: was fread(fid,[2,Inf],'double'); Adjust export
+    vFrameTimes = fread(syncFile,'double');%'int32' % VideoFrameTimes: was fread(fid,[2,Inf],'double'); Adjust export
     fclose(syncFile);
 else % csv file from Bonsai
     vFrameTimes=ReadVideoFrameTimes;

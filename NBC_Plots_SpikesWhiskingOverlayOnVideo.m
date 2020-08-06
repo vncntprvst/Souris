@@ -109,7 +109,38 @@ figure
 movie(M,1) %play 5 times;
 
 %create video
-v = VideoWriter('PrV88_125_whiskers_onvideo_171frames.avi');
-open(v);
-writeVideo(v, M);
-close(v);
+vidOutObj = VideoWriter('PrV88_125_whiskers_onvideo_171frames.avi');
+open(vidOutObj);
+writeVideo(vidOutObj, M);
+close(vidOutObj);
+
+
+vidObj = VideoWriter(path);
+            vidObj.FrameRate = 50;
+            open(vidObj);
+            
+            figure;
+            axes('Parent', gcf, 'Units', 'pixels', 'Position', [ 0 1 640 480 ]);
+            
+            hold on
+            ih = imagesc(this.movie(:,:,1), [0 255]);
+            colormap gray
+            
+            ch = plot(this.ptMasks(1,:,1), this.ptMasks(1,:,2), 'r', 'LineWidth', 2);
+            axis ij off
+            xlim([1 size(this.movie,2)]);
+            ylim([1 size(this.movie,1)]);
+            hold off
+            
+            for i = 1 : size(this.ptMasks, 1)
+                set(ih, 'CData', this.movie(:,:,i));
+                set(ch, 'XData', this.ptMasks(i,:,1));
+                set(ch, 'YData', this.ptMasks(i,:,2));
+                drawnow;
+                
+                frameObj = getframe;
+                writeVideo(vidObj, frameObj.cdata);
+            end
+
+            close(vidObj);
+

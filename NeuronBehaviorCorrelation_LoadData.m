@@ -183,16 +183,17 @@ if spikes.times(end) > size(allTraces,2)
 end
 
 %% Import whisker tracking data
-if ~sum(cellfun(@(flnm) contains(flnm,'wMeasurements'),allDataFiles))
+if ~any(cellfun(@(flnm) contains(flnm,'wMeasurements'),allDataFiles))
         % run ConvertWhiskerData to get those files. Should already be
         % done at this point, though.
         ConvertWhiskerData;
         dirListing=dir(startingDir);
 end
 whiskerTrackingFiles=cellfun(@(flnm) contains(flnm,'wMeasurements'),allDataFiles);
-if sum(whiskerTrackingFiles)
-    whiskerTrackingData=load(dirListing(cellfun(@(flnm) contains(flnm,'wMeasurements'),...
-        {dirListing.name})).name);
+if any(whiskerTrackingFiles)
+        whiskerTrackingData=load(allDataFiles{whiskerTrackingFiles});
+%     whiskerTrackingData=load(dirListing(cellfun(@(flnm) contains(flnm,'wMeasurements'),...
+%         {dirListing.name})).name);
 %     whiskerTrackingData.velocity=load(dirListing(cellfun(@(flnm) contains(flnm,'whiskervelocity'),...
 %         {dirListing.name})).name);
 %     whiskerTrackingData.phase=load(dirListing(cellfun(@(flnm) contains(flnm,'whiskerphase'),...

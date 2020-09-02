@@ -1,5 +1,5 @@
-fname='testT4.nev'; %testAMS
-dname='D:\Data\test\';
+fname='vIRt47_0803_4651.nev'; %testAMS
+dname=cd; %'D:\Data\test\';
 % [rec,data,spikes,TTLs] = LoadEphysData(fname,dname);
 
 NEVdata=openNEV(fullfile(dname,fname), 'read');
@@ -19,8 +19,8 @@ digInTimes=NEVdata.Data.SerialDigitalIO.TimeStamp; %TimeStampSec i interval in m
 % input on both ports   => bin2dec('11') = 3
 
 TTL_ID=logical(dec2bin(digInEvents)-'0');
-max(bwlabel(TTL_ID(:,1)))
-max(bwlabel(TTL_ID(:,2)))
+max(bwlabel(TTL_ID(:,end)))
+max(bwlabel(TTL_ID(:,end-1)))
 
 % vSyncTTLTimes=digInTimes(TTL_ID(:,1));
 % figure;

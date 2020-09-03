@@ -174,7 +174,6 @@ NBC_Plots_Continuity(ephys.spikes,ephys.selectedUnits,whiskerAngle,1:numel(whisk
 
 %% Consolidate epochs for summary figure
 %% Make collision test for antidromic stim
-%% Angle / Setpoint correlation
 
 
 %% Overview plot
@@ -258,12 +257,20 @@ pulseMask=false(1,size(whiskerAngle,2));
 pulseMask(round(pulses.TTLTimes(1,1)):round(pulses.TTLTimes(1,end)))=true;
 whiskingEpochs_m=whiskingEpochs;whiskingEpochs_m(pulseMask)=false;
 
+% ephys.selectedUnits=2; 2; 37; %12;
+% ephys.selectedUnits=find(keepUnits);
+% ephys.selectedUnits=qualityUnits(:,1);
+
 %% Phase tuning - Individual plots
 phaseTuning=NBC_Plots_PhaseTuning(whiskerAngle,whiskerPhase,ephys,whiskingEpochs_m,'whisking',false,false); %whiskingEpochs_m %ephys.spikeRate
 
 % Set point phase tuning 
 setpointPhase=WhiskingFun.ComputePhase(whiskerSetPoint,1000);
 NBC_Plots_PhaseTuning(whiskerSetPoint,setpointPhase,ephys,whiskingEpochs_m,'setpoint oscillation',false,false);
+
+%% Angle tuning - Individual plots
+whiskingEpochs_m=true(size(whiskerAngle));whiskingEpochs_m(pulseMask)=false;
+NBC_Plots_AngleTuning(whiskerAngle,ephys,whiskingEpochs_m,'whisker',false,false);
 
 %% Power spectrum and coherence
 unitNum=46;
@@ -281,9 +288,6 @@ NBC_Plots_Coherence(whiskerAngle,whiskerPhase,ephys,whiskingEpochs,unitNum,cmap)
 %% Is it tuned to Phase? Polar plot summary
 phaseTuning=NBC_Plots_PhaseTuning_PolarPlots(whiskerPhase',...%whiskingPhase',...
     whiskingEpochs_m,ephys.spikeRate(ephys.selectedUnits,:),false,ephys.recInfo.sessionName); %ephys.spikeRate
-
-%% Angle tuning - Individual plots
-angleTuning=NBC_Plots_AngleTuning(whiskerAngle,ephys,whiskingEpochs_m,false); %ephys.spikeRate
 
 %% Angle tuning
 NBC_Plots_SpikingWhiskAngleTuning(whiskerAngle',whiskerPhase',...

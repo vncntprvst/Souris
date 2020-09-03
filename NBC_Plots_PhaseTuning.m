@@ -83,8 +83,7 @@ for unitNum=1:size(spikeRasters,1)
     %     title({['Unit ' num2str(ephysData.selectedUnits(unitNum)) ' - ' recName];
     %         ['Tuning to ' labels ' phase']},'interpreter','none');
     for wEpochNum=1:numWepochs
-        clearvars eWhiskerAngle eWhiskerPhase sp2H sp3H sp4H
-        eWhiskerAngle=whiskerAngle(wEpochs.PixelIdxList{wEpochNum});
+        clearvars eWhiskerPhase sp2H sp3H sp4H
         eWhiskerPhase=whiskerPhase(wEpochs.PixelIdxList{wEpochNum});
         
         %         ptWhisks=bwconncomp(eWhiskerPhase>0);
@@ -239,7 +238,7 @@ for unitNum=1:size(spikeRasters,1)
             %     end
             
             sp4H=subplot(2,2,[1 2]); %subplot(2,1,2); %(4,numWepochs,numWepochs*3+wEpochNum)
-            polarhistogram(thetas,binNum,'Displaystyle','bar',...
+            polarhistogram(thetas,edges,'Displaystyle','bar',...
                 'Normalization','count','LineWidth',2,...
                 'EdgeColor',phEdgeColor,'FaceColor',phFaceColor,...
                 'EdgeAlpha',0);
@@ -250,7 +249,8 @@ for unitNum=1:size(spikeRasters,1)
             paH.ThetaDir = 'counterclockwise';
             % For Kyle's convention:
             %     paH.ThetaDir = 'clockwise';
-            
+%                         paH.RAxis.Label.String='Mean spike rate';
+
             title(['Unit ' num2str(ephysData.selectedUnits(unitNum)) ' - ' strrep(recName,'_','') ...
                 ' - Tuning to ' labels ' phase'],'interpreter','none');
             

@@ -2,15 +2,12 @@ function NBC_Plots_Overview(whiskerAngle,whiskerPhase,whiskerSetPoint,whiskingEp
 %% define figure colormap
 cmap=lines;cmap=[cmap(1:7,:);(lines+flipud(copper))/2;autumn];
 
-% normalize values
+% find base sertpoint and redress values if needed 
 baseSP=mode(round(whiskerSetPoint/10)*10);
 if baseSP<0
 whiskerSetPoint=whiskerSetPoint+180;
 whiskerAngle=whiskerAngle+180;
-baseSP=baseSP+180;
 end
-whiskerSetPoint=whiskerSetPoint-baseSP+90;
-whiskerAngle=whiskerAngle-baseSP+90;
 
 %% allocate
 rasters=ephys.rasters(ephys.selectedUnits,:);

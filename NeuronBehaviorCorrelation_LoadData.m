@@ -175,7 +175,7 @@ end
 TTLFile=cellfun(@(flnm) contains(flnm,'_TTLs'),allDataFiles);
 if any(videoFrameTimeFile)
     pulseFile = fopen(allDataFiles{TTLFile}, 'r');
-    TTLTimes = fread(pulseFile,[2,Inf],'double'); % int32(fread(syncFile,'int32')); % VideoFrameTimes: was Adjust export
+    TTLTimes = fread(pulseFile,[2,Inf],'single'); % int32(fread(syncFile,'int32')); % VideoFrameTimes: was Adjust export
     fclose(pulseFile);
 end
 if spikes.times(end) > size(allTraces,2)

@@ -95,14 +95,15 @@ if isempty(whiskerFiles{:})
     end
 end
 whiskerFiles=vertcat(whiskerFiles{~cellfun('isempty',whiskerFiles)});
-% % velocity 
-% whiskerVelocityFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
-%     {'*whiskervelocity.mat'},'UniformOutput', false);
-% whiskerVelocityFiles=vertcat(whiskerVelocityFiles{~cellfun('isempty',whiskerVelocityFiles)});
-% % phase
-% whiskerPhaseFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
-%     {'*whiskerphase.mat'},'UniformOutput', false);
-% whiskerPhaseFiles=vertcat(whiskerPhaseFiles{~cellfun('isempty',whiskerPhaseFiles)});
+
+%% Flow sensor data
+% if exist(fullfile(directoryHierarchy{1:end-1},'FlowSensor'),'dir')
+flowsensorFiles = cellfun(@(fileFormat) dir([fullfile(directoryHierarchy{1:end-1},'FlowSensor')...
+    filesep fileFormat]), {[regexp(startingDir,['(?<=\' filesep ')\w+$'],'match','once') '*_fs.bin']},'UniformOutput', false);
+
+%% Rotary encoder data
+rotaryencoderFiles = cellfun(@(fileFormat) dir([fullfile(directoryHierarchy{1:end-1},'RotaryEncoder')...
+    filesep fileFormat]), {[regexp(startingDir,['(?<=\' filesep ')\w+$'],'match','once') '*_re.bin']},'UniformOutput', false);
 
 %% TTL files (other than sync to video, e.g., laser)
 TTLFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
@@ -131,9 +132,12 @@ allDataFiles=struct('spikeSortingFiles',spikeSortingFiles,...
     'TTLFiles',TTLFiles,...
     'videoFrameTimeFiles',videoFrameTimeFiles,...
     'videoSyncInfoFiles',videoSyncInfoFiles,...
-    'whiskerFiles',whiskerFiles);
+    'whiskerFiles',whiskerFiles,...
+    'flowsensorFiles', flowsensorFiles, ...
+    'rotaryencoderFiles', rotaryencoderFiles);
 adf_fn=fields(allDataFiles);
 for dataFileNum=1:numel(adf_fn)
+    if isempty(allDataFiles.(adf_fn{dataFileNum})); continue; end
     [~,dateSort]=sort({allDataFiles.(adf_fn{dataFileNum}).date});
     allDataFiles.(adf_fn{dataFileNum})=allDataFiles.(adf_fn{dataFileNum})(dateSort(dateSort==max(dateSort)));
     allDataFiles.(adf_fn{dataFileNum}).exportname=allDataFiles.(adf_fn{dataFileNum}).name;
@@ -149,7 +153,7 @@ allDataFiles.(adf_fn{2}).exportname=...
 %% copy processed files to Analysis folder
 % try creating folder within Analysis folder: find common file part
 allDataFileNames=cellfun(@(fName) getfield(allDataFiles,{1},fName,{1},'exportname'),...
-    adf_fn,'UniformOutput', false);
+    adf_fn(~cellfun(@(fName) isempty(allDataFiles.(fName)),adf_fn)),'UniformOutput', false);
 commonStr = GetCommonString(allDataFileNames([1:4,6:9])); %exclude probe file name
 if ~isempty(commonStr)
     commonStr=regexprep(commonStr,'[^a-zA-Z0-9]+$','');

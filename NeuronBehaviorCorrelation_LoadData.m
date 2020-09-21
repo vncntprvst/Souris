@@ -159,7 +159,7 @@ end
 videoFrameTimeFile=cellfun(@(flnm) contains(flnm,'vSyncTTLs'),allDataFiles);
 if any(videoFrameTimeFile)
     syncFile = fopen(allDataFiles{videoFrameTimeFile}, 'r');
-    vFrameTimes = fread(syncFile,'double');%'int32' % VideoFrameTimes: was fread(fid,[2,Inf],'double'); Adjust export
+    vFrameTimes = fread(syncFile,'single');%'int32' % VideoFrameTimes: was fread(fid,[2,Inf],'double'); Adjust export
     fclose(syncFile);
 else % csv file from Bonsai
     vFrameTimes=ReadVideoFrameTimes;
@@ -175,7 +175,7 @@ end
 TTLFile=cellfun(@(flnm) contains(flnm,'_TTLs'),allDataFiles);
 if any(videoFrameTimeFile)
     pulseFile = fopen(allDataFiles{TTLFile}, 'r');
-    TTLTimes = fread(pulseFile,[2,Inf],'single'); % int32(fread(syncFile,'int32')); % VideoFrameTimes: was Adjust export
+    TTLTimes = fread(pulseFile,'single'); % [2,Inf]
     fclose(pulseFile);
 end
 if spikes.times(end) > size(allTraces,2)
@@ -199,7 +199,25 @@ if any(whiskerTrackingFiles)
 %     whiskerTrackingData.phase=load(dirListing(cellfun(@(flnm) contains(flnm,'whiskerphase'),...
 %         {dirListing.name})).name);
 end
-recInfo.SRratio=spikes.samplingRate/whiskerTrackingData.samplingRate;
+recInfo.SRratio=spikes.samplingRate; %/whiskerTrackingData.samplingRate;
+
+%% Load other data
+flowsensorFiles=cellfun(@(flnm) contains(flnm,'_fs.'),allDataFiles);
+if any(flowsensorFiles)
+    fsData = memmapfile(allDataFiles{flowsensorFiles},'Format','int16');
+    fsData=fsData.Data;
+%     fsData=smooth(single(fsData),100); %should be done already
+else
+    fsData=[];
+end
+
+rotaryencoderFiles=cellfun(@(flnm) contains(flnm,'_re.'),allDataFiles);
+if any(rotaryencoderFiles)
+    reData = memmapfile(allDataFiles{rotaryencoderFiles},'Format','int16');
+    reData=reData.Data;
+else
+    reData=[];
+end
 
 %% Data integrity checks 
 % Check video frame num vs TTLs if difference seems too big here
@@ -230,34 +248,41 @@ recInfo.SRratio=spikes.samplingRate/whiskerTrackingData.samplingRate;
 % numTTLs=numel(vFrameTimes)
 
 % Adjust frame times to frame number
-[whiskerTrackingData,vidTimes]=AdjustFrameNumFrameTimes(whiskerTrackingData,vidTimes);
+[whiskerTrackingData,vidTimes]=AdjustFrameNumFrameTimes(whiskerTrackingData,vidTimes,whiskerTrackingData.samplingRate);
 
 % keep info about video time window
 recInfo.vTimeLimits = [vidTimes(1) vidTimes(end)];
 
 %% Sync ephys and behavior (video)
-% Cut down ephys traces to video time window
-allTraces=allTraces(:,vidTimes(1)*recInfo.SRratio:vidTimes(end)*recInfo.SRratio);
-% Same for spikes
-spikeReIndex=spikes.times>=vidTimes(1)*recInfo.SRratio &...
-             spikes.times<=vidTimes(end)*recInfo.SRratio;
-spkFld=fieldnames(spikes);
-for spkFldNum=1:numel(spkFld)
-    try spikes.(spkFld{spkFldNum})=spikes.(spkFld{spkFldNum})(spikeReIndex,:,:);catch; end
-end %was spikeReIndex,:
-%same for TTLs (alrteady in ms resolution)
-TTLReIndex=TTLTimes(1,:)>=vidTimes(1) &...
-            TTLTimes(1,:)<=vidTimes(end);
-TTLTimes=TTLTimes(:,TTLReIndex);
-% re-set spike times. TTLs and video frame times
-spikes.times=int32(spikes.times)-vidTimes(1)*recInfo.SRratio; % spikes.times become uint32 when loaded from _spike file
-TTLTimes=TTLTimes-double(vidTimes(1));
-vidTimes=vidTimes-vidTimes(1);
+syncCut=false;
+if syncCut
+    % Cut down ephys traces to video time window
+    allTraces=allTraces(:,int32(vidTimes(1)*recInfo.SRratio:vidTimes(end)*recInfo.SRratio));
+    % Same for spikes
+    spikeReIndex=spikes.times>=vidTimes(1)*recInfo.SRratio &...
+                 spikes.times<=vidTimes(end)*recInfo.SRratio;
+    spkFld=fieldnames(spikes);
+    for spkFldNum=1:numel(spkFld)
+        try spikes.(spkFld{spkFldNum})=spikes.(spkFld{spkFldNum})(spikeReIndex,:,:);catch; end
+    end %was spikeReIndex,:
+    %same for TTLs (in s resolution)
+    TTLReIndex=TTLTimes(1,:)>=vidTimes(1) &...
+                TTLTimes(1,:)<=vidTimes(end);
+    TTLTimes=TTLTimes(:,TTLReIndex);
+    % re-set spike times. TTLs and video frame times
+    spikes.times=int32(spikes.times)-vidTimes(1)*recInfo.SRratio; % spikes.times become uint32 when loaded from _spike file
+    TTLTimes=TTLTimes-double(vidTimes(1));
+    vidTimes=vidTimes-vidTimes(1);
+end
+
+%% convert spike times to seconds
+spikes.times  = single(spikes.times)/spikes.samplingRate;
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %% group data in structure
 ephys=struct('traces',allTraces,'spikes',spikes,'recInfo',recInfo);
-behav=struct('whiskerTrackingData',whiskerTrackingData,'vidTimes',vidTimes);
+behav=struct('whiskerTrackingData',whiskerTrackingData,'vidTimes',vidTimes,...
+    'breathing',fsData,'wheel',reData);
 pulses=struct('TTLTimes',TTLTimes);
 cd(startingDir);
 

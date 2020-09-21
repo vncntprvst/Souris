@@ -173,10 +173,12 @@ end
 
 %% Load other TTLs
 TTLFile=cellfun(@(flnm) contains(flnm,'_TTLs'),allDataFiles);
-if any(videoFrameTimeFile)
+if any(TTLFile)
     pulseFile = fopen(allDataFiles{TTLFile}, 'r');
     TTLTimes = fread(pulseFile,'single'); % [2,Inf]
     fclose(pulseFile);
+else
+    TTLTimes=[];
 end
 if spikes.times(end) > size(allTraces,2)
     TTLTimes=TTLTimes-startTime;

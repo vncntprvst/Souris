@@ -154,7 +154,9 @@ allDataFiles.(adf_fn{2}).exportname=...
 % try creating folder within Analysis folder: find common file part
 allDataFileNames=cellfun(@(fName) getfield(allDataFiles,{1},fName,{1},'exportname'),...
     adf_fn(~cellfun(@(fName) isempty(allDataFiles.(fName)),adf_fn)),'UniformOutput', false);
-commonStr = GetCommonString(allDataFileNames([1:4,6:9])); %exclude probe file name
+ %exclude probe file name
+allDataFileNames=allDataFileNames(~cellfun(@(fName) contains(fName,'Probe'),allDataFileNames));
+commonStr = GetCommonString(allDataFileNames);
 if ~isempty(commonStr)
     commonStr=regexprep(commonStr,'[^a-zA-Z0-9]+$','');
 end

@@ -38,7 +38,7 @@ directoryHierarchy=regexp(startingDir,['\S+?(?=\' filesep ')'],'match');
 
 %% Spikes data file
 spikeSortingFiles = cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
-    {'*_spikes.mat','*.result.hdf5','*_rez.mat','*_res.mat','*_jrc.mat','*.csv','*_spikesResorted.mat'},'UniformOutput', false);
+    {'*_spikes.mat','*.result.hdf5','*_rez.mat','*_res.mat','*_jrc.mat','*_spikesResorted.mat'},'UniformOutput', false);
 spikeSortingFiles=vertcat(spikeSortingFiles{~cellfun('isempty',spikeSortingFiles)});
 % do not include those files:
 spikeSortingFiles=spikeSortingFiles(~cellfun(@(flnm) contains(flnm,{'DeepCut','Whisker','Frame','trial'}),...
@@ -155,8 +155,8 @@ allDataFiles.(adf_fn{2}).exportname=...
 allDataFileNames=cellfun(@(fName) getfield(allDataFiles,{1},fName,{1},'exportname'),...
     adf_fn(~cellfun(@(fName) isempty(allDataFiles.(fName)),adf_fn)),'UniformOutput', false);
  %exclude probe file name
-allDataFileNames=allDataFileNames(~cellfun(@(fName) contains(fName,'Probe'),allDataFileNames));
-commonStr = GetCommonString(allDataFileNames);
+fileNames=allDataFileNames(~cellfun(@(fName) contains(fName,{'Probe','.prb'}),allDataFileNames));
+commonStr = GetCommonString(fileNames);
 if ~isempty(commonStr)
     commonStr=regexprep(commonStr,'[^a-zA-Z0-9]+$','');
 end

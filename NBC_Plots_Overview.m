@@ -3,15 +3,15 @@ function NBC_Plots_Overview(whisker,whiskingEpochs,breathing, ephys,TTLtimes,zoo
 cmap=lines;cmap=[cmap(1:7,:);(lines+flipud(copper))/2;autumn];
 
 % find base setpoint and redress values if needed
-baseSP=mode(round(whisker.SetPoint/10)*10);
+baseSP=mode(round(whisker.setPoint/10)*10);
 if baseSP<0
-    whisker.SetPoint=whisker.SetPoint+180;
-    whisker.Angle=whisker.Angle+180;
+    whisker.setPoint=whisker.setPoint+180;
+    whisker.angle=whisker.angle+180;
 end
 
 %% allocate
 rasters=ephys.rasters(ephys.selectedUnits,:);
-scaleF=ceil(max(whisker.Angle));
+scaleF=ceil(max(whisker.angle));
 if ~exist('TTLtimes','var') | isempty(TTLtimes)
     TTLtimes=[]; 
 else
@@ -20,18 +20,19 @@ else
 end
 
 %% open figure
-figure('color','white','position',[62,167,1307,727]);
+figure('color','white','position',[62,167,1307,727],...
+    'name',['Overview_' ephys.recInfo.baseName],'NumberTitle', 'off');
 angleAxH = axes('Position',[0.1 0.5 0.8 0.4]); hold on;
 spikesAxH = axes('Position',[0.1 0.1 0.8 0.4]); hold on;
 
 %% plot whisker angle and setPoint
 axes(angleAxH)
-pH{1}=plot(whisker.Timestamps,whisker.Angle,'color',cmap(1,:),'linewidth',1.2);
+pH{1}=plot(whisker.timestamp,whisker.angle,'color',cmap(1,:),'linewidth',1.2);
 if ~isempty(breathing)
-    baseSP=mode(round(whisker.SetPoint/10)*10);
+    baseSP=mode(round(whisker.setPoint/10)*10);
     pH{2}=plot(breathing.ts,breathing.data+baseSP,'color',[cmap(2,:) 0.5],'linewidth',1.2);
 else
-    pH{2}=plot(whisker.Timestamps,whisker.SetPoint,'color',[cmap(2,:) 0.5],'linewidth',1.2);
+    pH{2}=plot(whisker.timestamp,whisker.setPoint,'color',[cmap(2,:) 0.5],'linewidth',1.2);
 end
 for pulseNum=1:size(TTLtimes,1)
     patch([TTLtimes(pulseNum,1), TTLtimes(pulseNum,1),...
@@ -42,9 +43,9 @@ end
 
 % plot Phase
 patchColor=[222, 207, 103]./255; %180, 225, 228
-protractPeriods=bwconncomp(whisker.Phase<=0 & whiskingEpochs);
-proPIdx=cellfun(@(proP) [whisker.Timestamps(proP(1)) whisker.Timestamps(proP(1))...
-    whisker.Timestamps(proP(end)) whisker.Timestamps(proP(end))],...
+protractPeriods=bwconncomp(whisker.phase<=0 & whiskingEpochs);
+proPIdx=cellfun(@(proP) [whisker.timestamp(proP(1)) whisker.timestamp(proP(1))...
+    whisker.timestamp(proP(end)) whisker.timestamp(proP(end))],...
     protractPeriods.PixelIdxList,'un',0); proPIdx=[proPIdx{:}];
 pH{3}=patch('Faces',reshape(1:protractPeriods.NumObjects*4,[4,protractPeriods.NumObjects])',...
     'Vertices',[proPIdx',...

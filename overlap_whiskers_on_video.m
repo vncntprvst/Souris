@@ -1,32 +1,63 @@
+function overlap_whiskers_on_video(fName,numFrames,playVideo,saveVideo)
+
+cmap=lines;
+
 %original video
-vidObj = VideoReader('PrV88_125_HSCamClips2.avi');
+vidObj = VideoReader([fName '.mp4']);
 vidHeight = vidObj.Height;
 vidWidth = vidObj.Width;
 s = struct('cdata',zeros(vidHeight,vidWidth,3,'uint8'),...
     'colormap',[]);
 
 %whisker data
-PrV88_125_whiskers=LoadWhiskers('PrV88_125_HSCamClips2.whiskers');
-frames=min([PrV88_125_whiskers.time]):max([PrV88_125_whiskers.time]);
+whiskers=Whisker.LoadWhiskers([fName '.whiskers']);
+frames=min([whiskers.time]):max([whiskers.time]);
+
+%measurements
+measurements = Whisker.LoadMeasurements([fName '.measurements']);
+
+switch nargin
+    case 1
+        numFrames=max(frames); [playVideo,saveVideo] = deal(false);
+    case 2
+        [playVideo,saveVideo] = deal(false);
+    case 3
+        saveVideo = false;
+end
 
 figure;
-for frameId = 1:max(frames)
+for frameId = 1:numFrames
     hold on
     s(frameId).cdata = readFrame(vidObj); %store image
     image(s(frameId).cdata)
-    fields=PrV88_125_whiskers([PrV88_125_whiskers.time]==frames(frameId));
+    %plot whiskers
+    fields=whiskers([whiskers.time]==frames(frameId));
     for framePlots=1:size(fields,1)
-        plot(fields(framePlots).x,fields(framePlots).y);
+        plot(fields(framePlots).x,fields(framePlots).y,'color',cmap(framePlots,:));
     end
-	axis([1 640 1 480])
-	M(frameId) = getframe;
-    cla;
+    % then plot follicles from measurments
+    fields=measurements([measurements.fid]==frames(frameId));
+    for framePlots=1:size(fields,1)
+        plot(measurements(framePlots).follicle_x,...
+            measurements(framePlots).follicle_y,...
+            'marker','O','MarkerEdgeColor','none','MarkerFaceColor',cmap(framePlots,:))
+    end
+    axis([1 640 1 480])
+    if playVideo || saveVideo
+        M(frameId) = getframe;
+        cla;
+    end
 end
-figure
-movie(M,5) %play 5 times;
+
+if playVideo
+    figure
+    movie(M,5) %play 5 times;
+end
 
 %create video
-v = VideoWriter('PrV88_125_whiskers_onvideo_171frames.avi');
-open(v);
-writeVideo(v, M);
-close(v);
+if saveVideo
+    v = VideoWriter('whiskers_on_video.avi');
+    open(v);
+    writeVideo(v, M);
+    close(v);
+end

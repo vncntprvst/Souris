@@ -19,9 +19,9 @@ if exist('ue','var')
     ephys.spikeRate=decimate(ephys.spikeRate,2);
     ephys.selectedUnits=1;
     ephys.recInfo.sessionName=ue.sessionName;
-    whisker.Angle=behav.angle;
-    whisker.Velocity=behav.velocity; 
-    whisker.Phase=-behav.phase; 
+    whiskers.angle=behav.angle;
+    whiskers.velocity=behav.velocity; 
+    whiskers.phase=-behav.phase; 
     % Convention here: 
     %   Max protraction: 0 Max retraction pi/-pi
     %   (countercycle and -pi as compared to Kleinfeld et al.'s convention, where 
@@ -33,34 +33,38 @@ else
 %         save([ephys.recInfo.sessionName '_processedData'],'ephys','behav','pulses','-v7.3');
     end
     %% whisking data
-    whisker.Angle=behav.whiskerTrackingData.Angle; %whisker.Angle=fillmissing(behav.whiskerTrackingData.Angle_BP,'nearest');
-    whisker.Velocity=behav.whiskerTrackingData.Velocity;
-    whisker.Phase=behav.whiskerTrackingData.Phase;
-    whisker.Amplitude=behav.whiskerTrackingData.Amplitude;
-    whisker.Frequency=behav.whiskerTrackingData.Freq;
-    whisker.SetPoint=behav.whiskerTrackingData.SetPoint;
-    whisker.Timestamps=behav.whiskerTrackingData.Timestamp;
+    bWhisk=behav.whiskerTrackingData.keepWhiskerIDs==behav.whiskerTrackingData.bestWhisker; %best whisker
+%     whisker.angle={behav.whiskers.angle}; %whisker.angle=fillmissing({behav.whiskers.angle_BP,'nearest')};
+%     whisker.velocity={behav.whiskers.velocity};
+%     whisker.phase={behav.whiskers.phase};
+%     whisker.amplitude={behav.whiskers.amplitude};
+%     whisker.frequency={behav.whiskers.freq};
+%     whisker.setPoint={behav.whiskers.setPoint};
+%     whisker.timestamps={behav.whiskers.timestamp};
+    whiskers=behav.whiskers;
     %% compute whisking frequency (different from instantaneous frequency
-    whisksIdx = bwconncomp(diff(whisker.Phase)>0);
-    peakIdx = zeros(1,length(whisker.Velocity));
+    whisksIdx = bwconncomp(diff(whiskers(bWhisk).phase)>0);
+    peakIdx = zeros(1,length(whiskers(bWhisk).velocity));
     peakIdx(cellfun(@(whisk) whisk(1), whisksIdx.PixelIdxList))=1;
-    whisker.Frequency=movsum(peakIdx,behav.whiskerTrackingData.samplingRate);
+    whiskers(bWhisk).frequency=movsum(peakIdx,behav.whiskerTrackingData.samplingRate);
 
     %% other behavior data
     if ~isempty(behav.breathing)
         breathing.data=double(behav.breathing');
-        breathing.data=breathing.data*(range(whisker.SetPoint)/range(breathing.data));
-        breathing.ts=linspace(0,ephys.recInfo.duration_sec,numel(behav.breathing)); 
+        breathing.data=breathing.data*(range(whiskers(bWhisk).setPoint)/range(breathing.data));
+        breathing.ts=linspace(0,ephys.recInfo.duration_sec,numel(behav.breathing));
+    else
+        breathing=[];
     end
     
     %If conforming to Kyle's convention
-%     if max(whisker.Phase)<=pi
-%         whisker.Phase=-whisker.Phase;
+%     if max(whisker.phase)<=pi
+%         whisker.phase=-whisker.phase;
 %     end
     %% compute rasters
     % aim for same length for ephys traces and behavior data
     [ephys.rasters,unitList]=EphysFun.MakeRasters(ephys.spikes.times,ephys.spikes.unitID,...
-        1,size(whisker.Angle,2)); %int32(size(ephys.traces,2)/ephys.spikes.samplingRate*1000));
+        1,size(whiskers(bWhisk).angle,2)); %int32(size(ephys.traces,2)/ephys.spikes.samplingRate*1000));
     %% compute spike density functions
     ephys.spikeRate=EphysFun.MakeSDF(ephys.rasters);
     % ephys.spikeRate=decimate(ephys.spikeRate,2);
@@ -84,18 +88,18 @@ cmap=lines;cmap=[cmap(1:7,:);(lines+flipud(copper))/2;autumn];
 %% make sure behavior and spike traces have same length
 cropTraces = false;
 if cropTraces
-    if size(ephys.spikeRate,2)~=numel(whisker.Angle)
+    if size(ephys.spikeRate,2)~=numel(whiskers(bWhisk).angle)
         % check what's up
-        if size(ephys.spikeRate,2)<size(whisker.Angle,2)
-            whisker.Angle=whisker.Angle(:,1:size(ephys.spikeRate,2));
-            whisker.Velocity=whisker.Velocity(:,1:size(ephys.spikeRate,2));
-            whisker.Phase=whisker.Phase(:,1:size(ephys.spikeRate,2));
-            whisker.Amplitude=whisker.Amplitude(:,1:size(ephys.spikeRate,2));
-            whisker.Frequency=whiskerFrequency(:,1:size(ephys.spikeRate,2));
-            whisker.SetPoint=whisker.SetPoint(:,1:size(ephys.spikeRate,2));
+        if size(ephys.spikeRate,2)<size(whiskers(bWhisk).angle,2)
+            whiskers.angle=whiskers.angle(:,1:size(ephys.spikeRate,2));
+            whiskers.velocity=whiskers.velocity(:,1:size(ephys.spikeRate,2));
+            whiskers.phase=whiskers.phase(:,1:size(ephys.spikeRate,2));
+            whiskers.amplitude=whiskers.amplitude(:,1:size(ephys.spikeRate,2));
+            whiskers.frequency=whiskerFrequency(:,1:size(ephys.spikeRate,2));
+            whiskers.setPoint=whiskers.setPoint(:,1:size(ephys.spikeRate,2));
         else
-            ephys.spikeRate=ephys.spikeRate(:,1:length(whisker.Angle));
-            ephys.rasters=ephys.rasters(:,1:length(whisker.Angle));
+            ephys.spikeRate=ephys.spikeRate(:,1:length(whiskers.angle));
+            ephys.rasters=ephys.rasters(:,1:length(whiskers.angle));
         end
     end
 end
@@ -105,7 +109,7 @@ ampThd=18; %12; %18 %amplitude threshold
 freqThld=1; %frequency threshold
 minBoutDur=1000; %500; % 1000 % minimum whisking bout duration: 1s
 whiskingEpochs=WhiskingFun.FindWhiskingEpochs(...
-   whisker.Amplitude(1,:),whisker.Frequency(1,:),...
+   whiskers(bWhisk).amplitude,whiskers(bWhisk).frequency,...
    ampThd, freqThld, minBoutDur); 
 whiskingEpochs(isnan(whiskingEpochs))=false; %just in case
 whiskingEpochsList=bwconncomp(whiskingEpochs);
@@ -114,9 +118,9 @@ whiskingEpochsList.PixelIdxListSorted=whiskingEpochsList.PixelIdxList(wBoutDurSo
 
 if false
     figure; hold on;
-    plot(whisker.Angle);
-    plot(whiskingEpochs*nanstd(whisker.Angle)+nanmean(whisker.Angle))
-    % plot(whisker.Phase*nanstd(whisker.Angle)/2+nanmean(whisker.Angle));
+    plot(whiskers(bWhisk).angle);
+    plot(whiskingEpochs*nanstd(whiskers(bWhisk).angle)+nanmean(whiskers(bWhisk).angle))
+    % plot(whisker.phase*nanstd(whisker.angle)/2+nanmean(whisker.angle));
 end
 
 %% decide which units to keep: 
@@ -161,7 +165,7 @@ end
 ephys.selectedUnits=ephys.selectedUnits(unitDepthOrder);
 ephys.unitCoordinates=unitLoc(unitDepthOrder,:);
 % rasters=ephys.rasters(ephys.selectedUnits,:);
-% save([ephys.recInfo.sessionName 'Traces_Rasters.mat'],'whisker.Angle','whisker.Phase','rasters')
+% save([ephys.recInfo.sessionName 'Traces_Rasters.mat'],'whisker.angle','whisker.phase','rasters')
 
 % only + PT (see below for PT)
 
@@ -175,12 +179,12 @@ if false
     % exploratory: lower frequency < 10, high amplitude >35, medium setpoint/angular values ?
     % resting: lower frequency < 10Hz, low/medium amplitude <25, low setpoint/angular values <60
     % twiches: high frequency > 25Hz, low amplitude <10, low setpoint/angular values <70 at start of whisk
-    whiskingEpochs=WhiskingFun.FindWhiskingModes(whisker.Angle,whisker.Velocity,whisker.Amplitude,whiskerFrequency,whisker.SetPoint);
+    whiskingEpochs=WhiskingFun.FindWhiskingModes(whiskers(bWhisk).angle,whiskers(bWhisk).velocity,whiskers(bWhisk).amplitude,whiskerFrequency,whiskers(bWhisk).setPoint);
     figure; hold on
-    plot(whisker.Angle)
+    plot(whiskers(bWhisk).angle)
     for wModeNum=1:numel(whiskingEpochs)
-        whiskModeVals=nan(size(whisker.Angle));
-        whiskModeVals(whiskingEpochs(wModeNum).index)=whisker.Angle(whiskingEpochs(wModeNum).index);
+        whiskModeVals=nan(size(whiskers(bWhisk).angle));
+        whiskModeVals(whiskingEpochs(wModeNum).index)=whiskers(bWhisk).angle(whiskingEpochs(wModeNum).index);
         plot(whiskModeVals);
     end
     legend('angle',whiskingEpochs.type)
@@ -189,24 +193,24 @@ end
 %% Spike sorting integrity over whisking epochs
 if false
 % plot waveforms, ACG ISI
-    NBC_Plots_Continuity(ephys.spikes,ephys.selectedUnits,whisker.Angle,1:numel(whiskingEpochs),false); %whiskingEpochs
+    NBC_Plots_Continuity(ephys.spikes,ephys.selectedUnits,whiskers(bWhisk).angle,1:numel(whiskingEpochs),false); %whiskingEpochs
 end
 
 %% Consolidate epochs for summary figure
 %% Make collision test for antidromic stim
 
 %% Overview plot
-NBC_Plots_Overview(whisker,whiskingEpochs,breathing,ephys,pulses.TTLTimes,false,false);
+NBC_Plots_Overview(whiskers(bWhisk),whiskingEpochs,breathing,ephys,pulses.TTLTimes,false,false);
 
 %% Check Phototagging summary 
 % ephys.selectedUnits=[60 23]; 10; 2; 37; %12;
-if ~isfield(pulses,'duration'); pulses.duration=0.01; end
+if ~isfield(pulses,'duration'); pulses.duration=0.005; end
 PhotoTagPlots(ephys,pulses); %Implement SALT test
 % PTunits=[12,26,37];
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% WARNING %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Any tuning computation has to be done outside of stimulation periods 
-pulseMask=false(1,size(whisker.Angle,2));
+pulseMask=false(1,size(whiskers(bWhisk).angle,2));
 pulseMask(round(pulses.TTLTimes(1)*1000):round(pulses.TTLTimes(end)*1000))=true;
 whiskingEpochs_m=whiskingEpochs;whiskingEpochs_m(pulseMask)=false;
 
@@ -215,23 +219,24 @@ whiskingEpochs_m=whiskingEpochs;whiskingEpochs_m(pulseMask)=false;
 % ephys.selectedUnits=qualityUnits(:,1);
 
 %% Phase tuning - Individual plots
-phaseTuning=NBC_Plots_PhaseTuning(whisker.Angle,whisker.Phase,ephys,whiskingEpochs_m,'whisking',false,false); %whiskingEpochs_m %ephys.spikeRate
+phaseTuning=NBC_Plots_PhaseTuning(whiskers(bWhisk).angle,whiskers(bWhisk).phase,...
+    ephys,whiskingEpochs_m,'whisking',false,false); %whiskingEpochs_m %ephys.spikeRate
 
 % Set point phase tuning 
-setpointPhase=WhiskingFun.ComputePhase(whisker.SetPoint,1000);
-NBC_Plots_PhaseTuning(whisker.SetPoint,setpointPhase,ephys,whiskingEpochs_m,'setpoint oscillation',false,false);
+setpointPhase=WhiskingFun.ComputePhase(whiskers.setPoint,1000);
+NBC_Plots_PhaseTuning(whiskers.setPoint,setpointPhase,ephys,whiskingEpochs_m,'setpoint oscillation',false,false);
 
 % Breathing phase tuning 
 breathingPhase=WhiskingFun.ComputePhase(smooth(breathing.data,50)',1000);
 NBC_Plots_PhaseTuning(breathing.data,breathingPhase,ephys,whiskingEpochs_m,'breathing oscillation',false,false);
 
 %% Angle tuning - Individual plots
-whiskingEpochs_m=true(size(whisker.Angle));whiskingEpochs_m(pulseMask)=false;
-NBC_Plots_AngleTuning(whisker.Angle,ephys,whiskingEpochs_m,'whisker',false,false);
+whiskingEpochs_m=true(size(whiskers.angle));whiskingEpochs_m(pulseMask)=false;
+NBC_Plots_AngleTuning(whiskers.angle,ephys,whiskingEpochs_m,'whisker',false,false);
 
 %% Power spectrum and coherence
 unitNum=46;
-NBC_Plots_Coherence(whisker.Angle,whisker.Phase,ephys,whiskingEpochs,unitNum,cmap);
+NBC_Plots_Coherence(whiskers.angle,whiskers.phase,ephys,whiskingEpochs,unitNum,cmap);
 
 %% make video of whisking bouts
 boutNum=4 ; %19 7
@@ -257,7 +262,7 @@ boutFrames=boutFrames(1:end-numel(extraFrameIdx));
 spikeTimes = movmean(ephys.rasters(cellNum,traceIndex),2);
 spikeTimes = logical(spikeTimes(1:2:end));
 figure('position',[500 450  vidDims(2) vidDims(1)],'color','k');
-boutFrames=FrameByFrame_Overlay(boutFrames,[whisker.Phase(traceIndex(1:2:end));spikeTimes]); %whisker.Angle
+boutFrames=FrameByFrame_Overlay(boutFrames,[whiskers.phase(traceIndex(1:2:end));spikeTimes]); %whisker.angle
 
 %add audio for a given cell, given speed
 slowFactor=20; %500/25
@@ -310,24 +315,24 @@ release(videoFWriter);
 
 
 %% Is it tuned to Phase? Polar plot summary
-phaseTuning=NBC_Plots_PhaseTuning_PolarPlots(whisker.Phase',...%whiskingPhase',...
+phaseTuning=NBC_Plots_PhaseTuning_PolarPlots(whiskers.phase',...%whiskingPhase',...
     whiskingEpochs_m,ephys.spikeRate(ephys.selectedUnits,:),false,ephys.recInfo.sessionName); %ephys.spikeRate
 
 %% Angle tuning
-NBC_Plots_SpikingWhiskAngleTuning(whisker.Angle',whisker.Phase',...
+NBC_Plots_SpikingWhiskAngleTuning(whiskers.angle',whiskers.phase',...
     whiskingEpochs_m,ephys.rasters,false,ephys.recInfo.sessionName) %periodBeh
 
 %% whisking vs spikes plot
-% whiskerTraces_whiskFreq=whisker.Angle; %WhiskingFun.BandPassBehavData(whisker.Angle,1000,[4 10]);
-NBC_Plots_SpikesWhisking(whisker.Angle,whisker.Velocity,whisker.Phase,whiskingEpochs_m,ephys.rasters(mostFrqUnits,:));
+% whiskerTraces_whiskFreq=whisker.angle; %WhiskingFun.BandPassBehavData(whisker.angle,1000,[4 10]);
+NBC_Plots_SpikesWhisking(whiskers.angle,whiskers.velocity,whiskers.phase,whiskingEpochs_m,ephys.rasters(mostFrqUnits,:));
 
 
 %% whisking snapshot figures
-NBC_Plots_WhiskingPhaseVideoFrame(whisker.Angle,vidTimes,...
-    whisker.Phase,ephys.rasters,ephys.spikeRate);
+NBC_Plots_WhiskingPhaseVideoFrame(whiskers.angle,vidTimes,...
+    whiskers.phase,ephys.rasters,ephys.spikeRate);
 
 %% overlay whisking and spikes on video
-NBC_Plots_SpikesWhiskingOverlayOnVideo(whisker.Angle,vidTimes,...
+NBC_Plots_SpikesWhiskingOverlayOnVideo(whiskers.angle,vidTimes,...
     ephys.rasters,ephys.spikeRate); %cursor_1,cursor_2
 
 % parameters for coherence computation
@@ -417,7 +422,7 @@ end
 figure('position',[602   537   560   420]); hold on
 for clusterNum=1:length(ephys.selectedUnits)
     [acor,lag] = xcorr(ephys.spikeRate(ephys.selectedUnits,whiskingEpochs),...
-        whisker.Angle(whiskingEpochs)',500,'coeff');
+        whiskers.angle(whiskingEpochs)',500,'coeff');
     %     figure('position',[602   537   560   420]);
     plot(lag,acor,'LineWidth',2); 
     %xlabel('Lag (ms)');set(gca,'ylim',[-0.5 0.5])
@@ -435,7 +440,7 @@ for clusterNum=1:length(displayUnits)
 end
 for clusterNum=1:length(ephys.selectedUnits)
     [acor,lag] = xcorr(ephys.spikeRate(ephys.selectedUnits,whiskingEpochs),...
-        whisker.Phase(whiskingEpochs)',100,'coeff');
+        whiskers.phase(whiskingEpochs)',100,'coeff');
     figure('position',[602   537   560   420]);
     plot(lag,acor); xlabel('Lag (ms)'); set(gca,'ylim',[-1 1])
     title({['Cross correlation for unit' num2str(ephys.selectedUnits)];'Spike density function vs. Whisking phase'})
@@ -481,19 +486,19 @@ params.err=[2 0.05];
 params.trialave=0;
 
 for clusterNum=1:length(displayUnits)
-    [Coherence,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpt(whisker.Angle,...
+    [Coherence,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpt(whiskers.angle,...
         spikeTimes{displayUnits(clusterNum)}/double(ephys.spikes.samplingRate),params);
     figure; subplot(311); plot(sgFreq,Coherence);subplot(312); plot(sgFreq,10*log10(S1));subplot(313); plot(sgFreq,10*log10(S2))
     Coherence(S1==max(S1))
 end
 for clusterNum=1:length(displayUnits)
-    [Coherence,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpb(whisker.Angle,...
+    [Coherence,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpb(whiskers.angle,...
         ephys.spikeRate(displayUnits(clusterNum),:)',params);
     figure; subplot(311); plot(sgFreq,Coherence);subplot(312); plot(sgFreq,10*log10(S1));subplot(313); plot(sgFreq,10*log10(S2))
     Coherence(S1==max(S1))
 end
 for clusterNum=1:length(displayUnits)
-    [Coherence,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpb(whisker.Phase,...
+    [Coherence,phi,S12,S1,S2,sgFreq,zerosp,confC,phierr,Cerr]=coherencycpb(whiskers.phase,...
         ephys.spikeRate(displayUnits(clusterNum),:)',params);
     figure; subplot(311); plot(sgFreq,Coherence);subplot(312); plot(sgFreq,10*log10(S1));subplot(313); plot(sgFreq,10*log10(S2))
     Coherence(S1==max(S1))

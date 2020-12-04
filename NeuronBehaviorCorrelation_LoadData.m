@@ -80,9 +80,12 @@ end
 if numElectrodes==35; numElectrodes=32; end %Disregard eventual AUX channels
 
 if ~isfield(recInfo,'channelMap') 
-    disp(mfilename('fullpath'));
-    disp('assuming channels have been remapped already')
-    recInfo.channelMap = 1:numElectrodes;
+    disp({'missing channelMap' ; 'delete old probe files then reexport data'})
+    return
+% 
+%     disp(mfilename('fullpath'));
+%     disp('assuming channels have been remapped already')
+%     recInfo.channelMap = 1:numElectrodes;
 end
 
 %% Load recording traces
@@ -100,6 +103,7 @@ end
 %     allTraces = fread(traceFile,[numElectrodes,Inf],'int16');
 %     fclose(traceFile);
 
+% remap traces
 allTraces=allTraces(recInfo.channelMap,:);
 
 if isfield(recInfo,'samplingRate')
@@ -283,7 +287,8 @@ spikes.times  = single(spikes.times)/spikes.samplingRate;
 %%%%%%%%%%%%%%%%%%%%%%%%%%
 %% group data in structure
 ephys=struct('traces',allTraces,'spikes',spikes,'recInfo',recInfo);
-behav=struct('whiskerTrackingData',whiskerTrackingData,'vidTimes',vidTimes,...
+behav=struct('whiskers',whiskerTrackingData.whiskers,...
+    'whiskerTrackingData',rmfield(whiskerTrackingData,'whiskers'),'vidTimes',vidTimes,...
     'breathing',fsData,'wheel',reData);
 pulses=struct('TTLTimes',TTLTimes);
 cd(startingDir);

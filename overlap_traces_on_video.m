@@ -1,4 +1,4 @@
-function NBC_Plots_SpikesWhiskingOverlayOnVideo
+function overlap_traces_on_video
 
 
 %original video

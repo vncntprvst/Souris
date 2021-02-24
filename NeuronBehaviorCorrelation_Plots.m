@@ -28,8 +28,9 @@ if exist('ue','var')
     %   Max protraction: pi Max retraction 0/2pi
 else
     if ~exist('ephys','var')
-        [ephys,behav,pulses]=NeuronBehaviorCorrelation_LoadData;
-        cd(fullfile('../../Analysis',ephys.recInfo.sessionName))
+        [ephys,behav,pulses,targetDir]=NeuronBehaviorCorrelation_LoadData;
+%         cd(fullfile('../../Analysis',ephys.recInfo.sessionName))
+        cd(targetDir);
 %         save([ephys.recInfo.sessionName '_processedData'],'ephys','behav','pulses','-v7.3');
     end
     %% whisking data

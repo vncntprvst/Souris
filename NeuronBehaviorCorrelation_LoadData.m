@@ -1,4 +1,4 @@
-function [ephys,behav,pulses]=NeuronBehaviorCorrelation_LoadData
+function [ephys,behav,pulses,targetDir]=NeuronBehaviorCorrelation_LoadData
 % Loads data for analysis of correlation between bursts/spike rate 
 % and periodic behaviors (whisking, breathing)
 %% Directory structure assumed to be:

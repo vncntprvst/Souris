@@ -1,6 +1,6 @@
 function [allDataFileNames,targetDir]=NeuronBehaviorCorrelation_GatherData(vararg)
 
-% Gather data for analysis of correlation between bursts/spike rate 
+% Gather data for analysis of correlation between bursts/spike rate
 % and periodic behaviors (whisking, breathing)
 
 %% Directory structure assumed be
@@ -58,7 +58,7 @@ ephysTraceFiles=ephysTraceFiles(cellfun(@(flnm) contains(flnm,{'_export';'_trace
 
 %% Recording info
 infoFiles = cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
-    {'*info*'},'UniformOutput', false);
+    {'*info*','*Info*'},'UniformOutput', false);
 infoFiles=vertcat(infoFiles{~cellfun('isempty',infoFiles)});
 
 %% Probe file (may be needed for channel map, etc)
@@ -76,7 +76,7 @@ if isempty(whiskerFiles{:})
         {'*.csv','whiskerTrackingData'},'UniformOutput', false);
     whiskerFiles=vertcat(whiskerFiles{~cellfun('isempty',whiskerFiles)});
     whiskerFiles=whiskerFiles(~cellfun(@(flnm) contains(flnm,{'trial';'analysis'}),...
-    {whiskerFiles.name}));
+        {whiskerFiles.name}));
     if ~isempty(whiskerFiles)
         ConvertWhiskerData;
         whiskerFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
@@ -154,28 +154,68 @@ allDataFiles.(adf_fn{2}).exportname=...
 % try creating folder within Analysis folder: find common file part
 allDataFileNames=cellfun(@(fName) getfield(allDataFiles,{1},fName,{1},'exportname'),...
     adf_fn(~cellfun(@(fName) isempty(allDataFiles.(fName)),adf_fn)),'UniformOutput', false);
- %exclude probe file name
+%exclude probe file name
 fileNames=allDataFileNames(~cellfun(@(fName) contains(fName,{'Probe','.prb'}),allDataFileNames));
 commonStr = GetCommonString(fileNames);
 if ~isempty(commonStr)
     commonStr=regexprep(commonStr,'[^a-zA-Z0-9]+$','');
 end
-targetDir=fullfile(directoryHierarchy{1:end-1},'Analysis',commonStr);
-if ~exist(targetDir,'dir')
-    mkdir(targetDir);
-end
+
+
+outDirTemplate=fullfile(directoryHierarchy{1:end-1},'Analysis',commonStr);
 
 for dataFileNum=1:numel(adf_fn)
     if isempty(allDataFiles.(adf_fn{dataFileNum})); continue; end
-    copyfile(fullfile(allDataFiles.(adf_fn{dataFileNum}).folder,...
-        allDataFiles.(adf_fn{dataFileNum}).name),...
-        fullfile(targetDir,... %directoryHierarchy{1:end-1},'Analysis',...
-        allDataFiles.(adf_fn{dataFileNum}).exportname));
+    
+    %     copyfile too slow on FSTP - use ssh / scp
+    % tic
+    %     copyfile(fullfile(allDataFiles.(adf_fn{dataFileNum}).folder,...
+    %         allDataFiles.(adf_fn{dataFileNum}).name),...
+    %         fullfile(targetDir,... %directoryHierarchy{1:end-1},'Analysis',...
+    %         allDataFiles.(adf_fn{dataFileNum}).exportname));
+    % toc
+    
+    userName='prevosto';
+    hostName='satori-login-002.mit.edu';
+    labDir = '/nese/mit/group/fan_wang/all_staff/';
+    
+    %% make a local copy with scp
+    inDir=[replace(allDataFiles.(adf_fn{dataFileNum}).folder,'Z:\',...
+        [userName '@' hostName ':' labDir]) filesep];
+    inDir=replace(inDir,'\','/');
+    outDir=[replace(outDirTemplate,'Z:\',...
+        'D:\') filesep];
+%     outDir=replace(outDir,'SpikeSorting','Analysis');
+    [outDir,targetDir] = deal(replace(outDir,'Ephys\',''));
+    if ~exist(outDir,'dir')
+        mkdir(outDir);
+    end
+    fileName = allDataFiles.(adf_fn{dataFileNum}).name;
+    
+    % local copy to Analysis folder
+    
+    command = ['scp ' inDir fileName ' ' outDir];
+    system(command);
+    
+    %     % upload copy to Analysis folder
+    %     outDir=replace(inDir,'SpikeSorting','Analysis');
+    %     command = ['scp ' fileName ' ' outDir];
+    %     system(command);
+   
+    %% server copy with ssh
+    inDir=[replace(allDataFiles.(adf_fn{dataFileNum}).folder,'Z:\',...
+        labDir) filesep];
+    inDir=replace(inDir,'\','/');
+    outDir=[replace(outDirTemplate,'Z:\',...
+        labDir) filesep];
+    outDir=replace(outDir,'\','/');
+    if ~exist(outDir,'dir')
+        mkdir(outDir);
+    end
+    fileName = allDataFiles.(adf_fn{dataFileNum}).name;
+
+    % created satori2 shortcut in .ssh/config file
+    command = ['ssh satori2 "cp ' inDir fileName ' ' outDir fileName '"']; %mv is faster, if moving file is ok
+    system(command);
+    
 end
-
-
-
-
-
-
-

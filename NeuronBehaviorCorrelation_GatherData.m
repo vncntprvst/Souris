@@ -163,59 +163,66 @@ end
 
 
 outDirTemplate=fullfile(directoryHierarchy{1:end-1},'Analysis',commonStr);
+conn=jsondecode(fileread(fullfile(fileparts(mfilename('fullpath')),'NESE_connection.json')));
 
 for dataFileNum=1:numel(adf_fn)
     if isempty(allDataFiles.(adf_fn{dataFileNum})); continue; end
-    
-    %     copyfile too slow on FSTP - use ssh / scp
-    % tic
-    %     copyfile(fullfile(allDataFiles.(adf_fn{dataFileNum}).folder,...
-    %         allDataFiles.(adf_fn{dataFileNum}).name),...
-    %         fullfile(targetDir,... %directoryHierarchy{1:end-1},'Analysis',...
-    %         allDataFiles.(adf_fn{dataFileNum}).exportname));
-    % toc
-    
-    userName='prevosto';
-    hostName='satori-login-002.mit.edu';
-    labDir = '/nese/mit/group/fan_wang/all_staff/';
-    
-    %% make a local copy with scp
-    inDir=[replace(allDataFiles.(adf_fn{dataFileNum}).folder,'Z:\',...
-        [userName '@' hostName ':' labDir]) filesep];
-    inDir=replace(inDir,'\','/');
-    outDir=[replace(outDirTemplate,'Z:\',...
-        'D:\') filesep];
-%     outDir=replace(outDir,'SpikeSorting','Analysis');
-    [outDir,targetDir] = deal(replace(outDir,'Ephys\',''));
-    if ~exist(outDir,'dir')
-        mkdir(outDir);
-    end
     fileName = allDataFiles.(adf_fn{dataFileNum}).name;
+    %% make a local copy to Analysis folder
     
-    % local copy to Analysis folder
-    
-    command = ['scp ' inDir fileName ' ' outDir];
-    system(command);
-    
-    %     % upload copy to Analysis folder
-    %     outDir=replace(inDir,'SpikeSorting','Analysis');
-    %     command = ['scp ' fileName ' ' outDir];
-    %     system(command);
-   
-    %% server copy with ssh
-    inDir=[replace(allDataFiles.(adf_fn{dataFileNum}).folder,'Z:\',...
-        labDir) filesep];
-    inDir=replace(inDir,'\','/');
-    outDir=[replace(outDirTemplate,'Z:\',...
-        labDir) filesep];
-    outDir=replace(outDir,'\','/');
-    if ~exist(outDir,'dir')
-        mkdir(outDir);
+    if strcmp(allDataFiles.(adf_fn{dataFileNum}).folder(1),{'Z';'Y'})
+        % files on server:     %     copyfile too slow on FSTP - use scp
+        inDir=[replace(allDataFiles.(adf_fn{dataFileNum}).folder,...
+            allDataFiles.(adf_fn{dataFileNum}).folder(1:3),...
+            [conn.userName '@' conn.hostName ':' conn.labDir]) filesep];
+        inDir=replace(inDir,'\','/');
+        outDir=[replace(outDirTemplate,outDirTemplate(1:3),...
+            'D:\') filesep];
+        %     outDir=replace(outDir,'SpikeSorting','Analysis');
+        [outDir,targetDir] = deal(replace(outDir,'Ephys\',''));
+        if ~exist(outDir,'dir')
+            mkdir(outDir);
+        end
+        
+        command = ['scp ' inDir fileName ' ' outDir];
+        % execute copy to Analysis folder
+        system(command);
+        
+        %% server copy with ssh
+        inDir=[replace(allDataFiles.(adf_fn{dataFileNum}).folder,...
+            allDataFiles.(adf_fn{dataFileNum}).folder(1:3),...
+            conn.labDir) filesep];
+        inDir=replace(inDir,'\','/');
+        outDir=[replace(outDirTemplate,outDirTemplate(1:3),...
+            conn.labDir) filesep];
+        outDir=replace(outDir,'\','/');
+        if ~exist(outDir,'dir')
+            mkdir(outDir);
+        end
+        
+        % created satori2 shortcut in .ssh/config file
+        command = ['ssh satori2 "cp ' inDir fileName ' ' outDir fileName '"']; %mv is faster, if moving file is ok
+        system(command);
+        
+    else
+        %% file already on local computer
+        % just copy it to Analysis folder
+        copyfile(fullfile(allDataFiles.(adf_fn{dataFileNum}).folder,...
+            allDataFiles.(adf_fn{dataFileNum}).name),...
+            fullfile(outDirTemplate,... %directoryHierarchy{1:end-1},'Analysis',...
+            allDataFiles.(adf_fn{dataFileNum}).exportname));
+        
+        %% server side
+        % upload a copy to Analysis folder
+        outDir=[replace(allDataFiles.(adf_fn{dataFileNum}).folder,...
+            allDataFiles.(adf_fn{dataFileNum}).folder(1:3),...
+            [conn.userName '@' conn.hostName ':' conn.labDir]) filesep];
+        outDir=replace(outDir,'SpikeSorting','Analysis');
+        outDir=replace(outDir,'Vincent','Vincent\Ephys');
+        outDir=replace(outDir,'\','/');
+        
+        command = ['scp ' fileName ' ' outDir];
+        system(command);
     end
-    fileName = allDataFiles.(adf_fn{dataFileNum}).name;
-
-    % created satori2 shortcut in .ssh/config file
-    command = ['ssh satori2 "cp ' inDir fileName ' ' outDir fileName '"']; %mv is faster, if moving file is ok
-    system(command);
     
 end

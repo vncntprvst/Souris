@@ -68,12 +68,13 @@ end
 
 
 for unitNum=1:size(spikeRasters,1)
-    numWepochs=wEpochs.NumObjects;
-    if wEpochs.NumObjects>1
-        figure('Color','white','position',[165         153        1143         911])
-    else
-        figure('Color','white','position',[1035         224         802         672]);
+    
+    if mean(spikeRate(unitNum,:)) < 0.5
+        continue
     end
+    
+    numWepochs=wEpochs.NumObjects;
+
     %     subplot(4,numWepochs,1:numWepochs); hold on;
     %     plot(whiskerAngle,'k');
     %     if wEpochs.NumObjects>1
@@ -83,6 +84,11 @@ for unitNum=1:size(spikeRasters,1)
     %     title({['Unit ' num2str(ephysData.selectedUnits(unitNum)) ' - ' recName];
     %         ['Tuning to ' labels ' phase']},'interpreter','none');
     for wEpochNum=1:numWepochs
+%         if wEpochs.NumObjects>1
+%             figure('Color','white','position',[165         153        1143         911])
+%         else
+            figure('Color','white','position',[1035         224         802         672]);
+%         end
         clearvars eWhiskerPhase sp2H sp3H sp4H
         eWhiskerPhase=whiskerPhase(wEpochs.PixelIdxList{wEpochNum});
         

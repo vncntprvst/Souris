@@ -8,7 +8,10 @@ dirFiles=dir;
 processedDataFiles=cellfun(@(x) contains(x,'processedData') ||...
     contains(x,'UnitExplorer'), {dirFiles.name});
 if sum(processedDataFiles) 
-    load(fullfile(dirFiles(processedDataFiles).folder,dirFiles(processedDataFiles).name));
+    load(fullfile(dirFiles(processedDataFiles).folder,dirFiles(processedDataFiles).name));   
+    traceFile = fopen(dirFiles(cellfun(@(x) contains(x,'traces'),{dirFiles.name})).name, 'r');
+    ephys.traces = fread(traceFile,[ephys.recInfo.numRecChan,Inf],'single'); 
+    fclose(traceFile);
 end
 if exist('ue','var')
     % extract data from ue object 
@@ -31,7 +34,14 @@ else
         [ephys,behav,pulses,targetDir]=NeuronBehaviorCorrelation_LoadData;
 %         cd(fullfile('../../Analysis',ephys.recInfo.sessionName))
         cd(targetDir);
-%         save([ephys.recInfo.sessionName '_processedData'],'ephys','behav','pulses','-v7.3');
+        
+        % load ephys,whiskers,pulses from directory
+%         behav.whiskers=whiskers;
+%         behav.whiskerTrackingData.bestWhisker=bestWhisker;
+%         behav.whiskerTrackingData.whisker=whisker;
+%         behav.whiskerTrackingData.wtData=wtData;
+%         behav.whiskerTrackingData.samplingRate=samplingRate;
+        save([ephys.recInfo.sessionName '_processedData'],'ephys','behav','pulses','-v7.3');
     end
     %% whisking data
     bWhisk=behav.whiskerTrackingData.keepWhiskerIDs==behav.whiskerTrackingData.bestWhisker; %best whisker
@@ -125,7 +135,9 @@ if false
 end
 
 %% decide which units to keep: 
-%most frequent units
+keepWhat = 'all';
+switch keepWhat
+    case 'mostFreq' %most frequent units
 % mostFrqUnits=EphysFun.FindBestUnits(ephys.spikes.unitID,1);%keep ones over x% spikes
 %most frequent units during whisking periods
 reconstrUnits=ephys.rasters(:,whiskingEpochs).*(1:size(ephys.rasters,1))';
@@ -135,9 +147,9 @@ mostFrqUnits=EphysFun.FindBestUnits(reconstrUnits,1);
 keepUnits=ismember(unitList,mostFrqUnits);
 keepTraces=unique(ephys.spikes.preferredElectrode(ismember(ephys.spikes.unitID,unitList(keepUnits))));
 ephys.selectedUnits=find(keepUnits);
-%all of them
+    case 'all' %all of them
 ephys.selectedUnits=unitList; %all units 
-% only SU
+    case 'SU' % only Single units
 [unitQuality,RPVIndex]=SSQualityMetrics(ephys.spikes);
 unitQuality=[unique(double(ephys.spikes.unitID)),unitQuality];
 unitIdx=ismember(ephys.spikes.unitID,unitQuality(unitQuality(:,2)>0.6,1));
@@ -145,10 +157,12 @@ unitQuality(unitQuality(:,2)>0.6,3)=hist(double(ephys.spikes.unitID(unitIdx)),..
     unique(double(ephys.spikes.unitID(unitIdx))))/sum(unitIdx);
 qualityUnits=unitQuality(unitQuality(:,2)>0.6 & unitQuality(:,3)>0.01,:);
 ephys.selectedUnits=qualityUnits(:,1);
+    case 'handPick'
 % add manually, e.g., 
 % ephys.selectedUnits=[ephys.selectedUnits;54]; 1;2;19];
-% set just one
-% ephys.selectedUnits=12;
+% set numbers 
+% ephys.selectedUnits= [33, 30, 29, 17, 45, 40, 4, 36, 6, 11, 14];
+end
 
 %% organize selectedUnits by depth
 if size(ephys.recInfo.probeGeometry,2)>size(ephys.recInfo.probeGeometry,1)
@@ -205,7 +219,7 @@ NBC_Plots_Overview(whiskers(bWhisk),whiskingEpochs,breathing,ephys,pulses.TTLTim
 
 %% Check Phototagging summary 
 % ephys.selectedUnits=[60 23]; 10; 2; 37; %12;
-if ~isfield(pulses,'duration'); pulses.duration=0.005; end
+if ~isfield(pulses,'duration'); pulses.duration=0.010; end
 PhotoTagPlots(ephys,pulses); %Implement SALT test
 % PTunits=[12,26,37];
 
@@ -224,12 +238,16 @@ phaseTuning=NBC_Plots_PhaseTuning(whiskers(bWhisk).angle,whiskers(bWhisk).phase,
     ephys,whiskingEpochs_m,'whisking',false,false); %whiskingEpochs_m %ephys.spikeRate
 
 % Set point phase tuning 
-setpointPhase=WhiskingFun.ComputePhase(whiskers.setPoint,1000);
-NBC_Plots_PhaseTuning(whiskers.setPoint,setpointPhase,ephys,whiskingEpochs_m,'setpoint oscillation',false,false);
+setpointPhase=WhiskingFun.ComputePhase(whiskers(bWhisk).setPoint,1000,[],'setpoint');
+NBC_Plots_PhaseTuning(whiskers(bWhisk).setPoint,setpointPhase,ephys,whiskingEpochs_m,...
+    'setpoint oscillation',false,false);
 
 % Breathing phase tuning 
-breathingPhase=WhiskingFun.ComputePhase(smooth(breathing.data,50)',1000);
-NBC_Plots_PhaseTuning(breathing.data,breathingPhase,ephys,whiskingEpochs_m,'breathing oscillation',false,false);
+% manual masking: 
+% whiskingEpochs_m = false(1,size(whiskers(bWhisk).angle,2)); whiskingEpochs_m(4*10^5:5*10^5)=true;
+breathingPhase=WhiskingFun.ComputePhase(smooth(breathing.data,1000)',1000,[],'breathing');
+NBC_Plots_PhaseTuning(breathing.data,breathingPhase,ephys,whiskingEpochs_m,...
+    'breathing oscillation',true,false);
 
 %% Angle tuning - Individual plots
 whiskingEpochs_m=true(size(whiskers.angle));whiskingEpochs_m(pulseMask)=false;

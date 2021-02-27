@@ -207,10 +207,10 @@ for dataFileNum=1:numel(adf_fn)
     else
         %% file already on local computer
         % just copy it to Analysis folder
+        targetDir = outDirTemplate;
         copyfile(fullfile(allDataFiles.(adf_fn{dataFileNum}).folder,...
             allDataFiles.(adf_fn{dataFileNum}).name),...
-            fullfile(outDirTemplate,... %directoryHierarchy{1:end-1},'Analysis',...
-            allDataFiles.(adf_fn{dataFileNum}).exportname));
+            fullfile(outDirTemplate,allDataFiles.(adf_fn{dataFileNum}).exportname));
         
         %% server side
         % upload a copy to Analysis folder

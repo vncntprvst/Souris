@@ -254,7 +254,8 @@ end
 % numTTLs=numel(vFrameTimes)
 
 % Adjust frame times to frame number
-[whiskerTrackingData,vidTimes]=AdjustFrameNumFrameTimes(whiskerTrackingData,vidTimes,whiskerTrackingData.samplingRate);
+[whiskerTrackingData,vidTimes]=AdjustFrameNumFrameTimes(whiskerTrackingData,...
+    vidTimes,whiskerTrackingData.samplingRate);
 
 % keep info about video time window
 recInfo.vTimeLimits = [vidTimes(1) vidTimes(end)];
@@ -294,20 +295,22 @@ pulses=struct('TTLTimes',TTLTimes);
 cd(startingDir);
 
 %% sanity check plots
-% do plot pre and post sync
+% %do plot pre and post sync
 % figure; hold on 
 % timeLine=0:size(allTraces,2)/recInfo.SRratio;
 % % plot ephys trace
 % plot(timeLine,allTraces(1,1:recInfo.SRratio:numel(timeLine)*recInfo.SRratio))
 % % plot spikes
-% spikeRasters=EphysFun.MakeRasters(spikes.times,spikes.unitID,...
-%     spikes.samplingRate,int32(numel(timeLine)*recInfo.SRratio));
-% EphysFun.PlotRaster(spikeRasters(1,:))
+% % convert spikes times (behavior traces are already in seconds)
+% % spikes.times  = single(spikes.times)/spikes.samplingRate;
+% spikeRasters=EphysFun.MakeRasters(spikes.times,spikes.unitID,1); %...
+% %     spikes.samplingRate,int32(numel(timeLine)*recInfo.SRratio));
+% EphysFun.PlotRaster(spikeRasters(2,:))
 % % plot behavior trace
-% foo=whiskerTrackingData.angle.whiskerAngle;
-% foo(isnan(foo))=nanmean(foo);
-% timeLine=vidTimes(1):vidTimes(end);
-% plot(timeLine,foo(1:numel(timeLine)));
+% wAngle=whiskerTrackingData.whiskers.angle;
+% wAngle(isnan(wAngle))=nanmean(wAngle);
+% timeLine=vidTimes(1)*1000:vidTimes(end)*1000;
+% plot(timeLine,wAngle(1:numel(timeLine)));
 
 
 

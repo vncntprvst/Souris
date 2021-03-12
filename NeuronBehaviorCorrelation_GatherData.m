@@ -171,7 +171,8 @@ for dataFileNum=1:numel(adf_fn)
     %% make a local copy to Analysis folder
     
     if strcmp(allDataFiles.(adf_fn{dataFileNum}).folder(1),{'Z';'Y'})
-        % files on server:     %     copyfile too slow on FSTP - use scp
+        % files on server:     %     copyfile too slow on FSTP - use scp. 
+        % Make sure that ssh-agent is running! https://gist.github.com/danieldogeanu/16c61e9b80345c5837b9e5045a701c99
         inDir=[replace(allDataFiles.(adf_fn{dataFileNum}).folder,...
             allDataFiles.(adf_fn{dataFileNum}).folder(1:3),...
             [conn.userName '@' conn.hostName ':' conn.labDir]) filesep];
@@ -208,6 +209,9 @@ for dataFileNum=1:numel(adf_fn)
         %% file already on local computer
         % just copy it to Analysis folder
         targetDir = outDirTemplate;
+        if ~exist(outDirTemplate,'dir')
+            mkdir(outDirTemplate)
+        end
         copyfile(fullfile(allDataFiles.(adf_fn{dataFileNum}).folder,...
             allDataFiles.(adf_fn{dataFileNum}).name),...
             fullfile(outDirTemplate,allDataFiles.(adf_fn{dataFileNum}).exportname));
@@ -221,7 +225,8 @@ for dataFileNum=1:numel(adf_fn)
         outDir=replace(outDir,'Vincent','Vincent\Ephys');
         outDir=replace(outDir,'\','/');
         
-        command = ['scp ' fileName ' ' outDir];
+        command = ['scp ' fullfile(allDataFiles.(adf_fn{dataFileNum}).folder,fileName) ' ' outDir];
+%         command = ['ssh satori2 "mkdir ' outDir '"']; %create directory if doesn't exist
         system(command);
     end
     

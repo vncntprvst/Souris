@@ -147,12 +147,12 @@ for unitNum=1:size(spikeRasters,1)
             
             %plot PDF
             sp2H=subplot(2,2,4); hold on ; %(4,numEpochs,numEpochs+wEpochNum)
-            plot(linspace(-pi,pi, numBins+1),spikePhasePDF,'linewidth',1.2,'Color', [0 0 0]); %centers
-            plot(linspace(-pi,pi, numBins+1),phasePDF,'linewidth',1.2,'Color', [0 0 0 0.5]); %centers
+            plot(linspace(-pi,pi, numBins+1),smooth(spikePhasePDF),'linewidth',1.2,'Color', [0 0 0]); %centers
+            plot(linspace(-pi,pi, numBins+1),smooth(phasePDF),'linewidth',1.2,'Color', [0 0 0 0.5]); %centers
             set(gca,'ytick',0:0.05:1,...
                 'xlim',[-pi pi],'xtick',[-pi 0 pi],'xticklabel',{'-\pi','0','\pi'},...
                 'tickdir','out');
-            axis tight
+%             axis tight
             if wEpochs.behav.NumObjects==1
                 %                 'ylim',[0 0.1]
                 %               ylabel('PDF')
@@ -202,10 +202,18 @@ for unitNum=1:size(spikeRasters,1)
             %           rescale
             rsbinMeanSpikeRate=sum(reshape([binMeanSpikeRate(2:end),binMeanSpikeRate(1)],2,numBins))/2;
             rsbinMeanSpikeRate=[rsbinMeanSpikeRate(end) rsbinMeanSpikeRate];
-            
+            rsbinSESpikeRate=sum(reshape([binSESpikeRate(2:end),binSESpikeRate(1)],2,numBins))/2;
+            rsbinSESpikeRate=[rsbinSESpikeRate(end) rsbinSESpikeRate];
+%                 rsbinSESpikeRate=std(waveforms(~onSpikes,:))/ sqrt(size(waveforms(~onSpikes,:),2)); %standard error of the mean
+%     rsbinSESpikeRate = rsbinSESpikeRate * 1.96; % 95% of the data will fall within 1.96 standard deviations of a normal distribution
+
             %             shadedErrorBar(centers, binMeanSpikeRate,binSESpikeRate, 'lineprops','k');
-            plot(linspace(-pi,pi, numBins+1), rsbinMeanSpikeRate, 'LineWidth',2) %centers %,'color',cmap(unitNum,:));%'k'
-            %             end
+            plot(linspace(-pi,pi, numBins+1), rsbinMeanSpikeRate,'Color','k', 'LineWidth',2) %centers %,'color',cmap(unitNum,:));%'k'
+            patch([linspace(-pi,pi, numBins+1),linspace(pi,-pi, numBins+1)],...
+                [rsbinMeanSpikeRate-rsbinSESpikeRate,fliplr(rsbinMeanSpikeRate+rsbinSESpikeRate)],...
+                'k','EdgeColor','none','FaceAlpha',0.2); %cmap(cellNum,:)
+
+    %             end
             %             xlabel({'Phase  (rad)'; '0 = Max Protraction'}, 'FontSize', 18);
             %             ylabel('Firing rate (Spk/s)', 'FontSize', 18);
             axis tight

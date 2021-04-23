@@ -141,6 +141,17 @@ if isfield(spikes,'samplingRate')
     end
 end
 
+%% waveforms 
+wfDataFile=cellfun(@(flnm) contains(flnm,'_wF'),allDataFiles);
+if any(wfDataFile) 
+    load(allDataFiles{wfDataFile});
+% figure;
+% hold on 
+% plot(mean(waveForms(3).spikesFilt(:,2,:),3))
+% plot(mean(spikes.waveforms(spikes.unitID==3,:)))
+spikes.wF=waveForms;
+end
+
 %% Add voltage scaling factor
 if ~isfield(spikes,'bitResolution')
     if isfield(recInfo,'bitResolution')

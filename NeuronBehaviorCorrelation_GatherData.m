@@ -46,7 +46,7 @@ spikeSortingFiles=spikeSortingFiles(~cellfun(@(flnm) contains(flnm,{'DeepCut','W
 
 %% Spike waveforms
 spikeWaveformFiles = cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
-    {'*_filt.jrc'},'UniformOutput', false);
+    {'*_wF.mat','*_filt.jrc'},'UniformOutput', false);
 spikeWaveformFiles=vertcat(spikeWaveformFiles{~cellfun('isempty',spikeWaveformFiles)});
 
 %% Ephys recording data files
@@ -137,9 +137,9 @@ allDataFiles=struct('spikeSortingFiles',spikeSortingFiles,...
     'rotaryencoderFiles', rotaryencoderFiles);
 adf_fn=fields(allDataFiles);
 for dataFileNum=1:numel(adf_fn)
-    if isempty(allDataFiles.(adf_fn{dataFileNum})); continue; end
-    [~,dateSort]=sort({allDataFiles.(adf_fn{dataFileNum}).date});
-    allDataFiles.(adf_fn{dataFileNum})=allDataFiles.(adf_fn{dataFileNum})(dateSort(dateSort==max(dateSort)));
+    if isempty(allDataFiles.(adf_fn{dataFileNum})); continue; end    
+    [~,dateSort]=sort(datetime({allDataFiles.(adf_fn{dataFileNum}).date},'InputFormat','dd-MMM-uuuu HH:mm:ss'),'descend');
+    allDataFiles.(adf_fn{dataFileNum})=allDataFiles.(adf_fn{dataFileNum})(dateSort(1));
     allDataFiles.(adf_fn{dataFileNum}).exportname=allDataFiles.(adf_fn{dataFileNum}).name;
 end
 % mark spike and recording data as such

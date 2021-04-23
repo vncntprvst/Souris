@@ -36,7 +36,7 @@ for frameNum=1:numel(vidStruc)
                 polaraxes(paH); cla;
                 set(paH,'visible','on')
             else
-                polaraxes('Position',[0.05 0.1 0.3 0.3],'units','pixels','Color','none'); %reverse
+                polaraxes('Position',[0.13 0.07 0.3 0.3],'units','pixels','Color','none'); %reverse
             end
             if mVals(2,frameNum)
                 
@@ -47,9 +47,9 @@ for frameNum=1:numel(vidStruc)
             paH = gca; hold on
             polarplot(ones(3,1)*mVals(1,frameNum),0:2,'Color',[121, 215, 111]/255,'linewidth',1.5);
             paH.Color='none';
-            paH.ThetaZeroLocation='top';
-            paH.ThetaTickLabel={'Protracted','','','\downarrow','','',...
-                'Retracted','','','\uparrow','',''};
+            paH.ThetaZeroLocation='left';
+            paH.ThetaTickLabel={'Protracted','','','\rightarrow','','',...
+                'Retracted','','','\leftarrow','',''};
             paH.ThetaDir = 'counterclockwise';
             paH.FontSize = 15;
             paH.RGrid='off';

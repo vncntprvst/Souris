@@ -225,8 +225,8 @@ NBC_Plots_Overview(whiskers(bWhisk),whiskingEpochs,breathing,ephys,pulses.TTLTim
 
 %% Check Phototagging summary
 % ephys.selectedUnits=[60 23]; 10; 2; 37; %12;
-if ~isfield(pulses,'duration'); pulses.duration=0.0050; end
-PhotoTagPlots(ephys,pulses); %Implement SALT test
+if ~isfield(pulses,'duration'); pulses.duration=0.010; end
+PhotoTagPlots(ephys,pulses); 
 % PTunits=[12,26,37];
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%% WARNING %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -245,7 +245,7 @@ wEpochMask.ephys(ephysMaskIdx)=wEpochMask.behav;
 
 %% Phase tuning - Individual plots
 phaseTuning=NBC_Plots_PhaseTuning(whiskers(bWhisk).angle,whiskers(bWhisk).phase,...
-    ephys,wEpochMask,'whisking',false,false); %whiskingEpochs_m %ephys.spikeRate
+    ephys,wEpochMask,'whisking',true,false); %whiskingEpochs_m %ephys.spikeRate
 
 % Set point phase tuning
 setpointPhase=WhiskingFun.ComputePhase(whiskers(bWhisk).setPoint,1000,[],'setpoint');
@@ -268,9 +268,10 @@ unitNum=46;
 NBC_Plots_Coherence(whiskers.angle,whiskers.phase,ephys,whiskingEpochs,unitNum,cmap);
 
 %% make video of whisking bouts
-boutNum=4 ; %19 7
-cellNum=54; %37 26
-traceIndex=whiskingEpochsList.PixelIdxList{boutNum}; %350000:352000;%whiskingEpochsList.PixelIdxList{2}
+% vIRt44_1210_5450
+boutNum=7; %19 7 4
+cellNum=37; %37 26 54
+traceIndex=whiskingEpochsList.PixelIdxList{boutNum}/1000+behav.vidTimes(1)-0.001; %350000:352000;%whiskingEpochsList.PixelIdxList{2}
 [boutFrames,frameIndex]=WhiskingBoutVideo(ephys.recInfo.likelyVideoFile,ephys.recInfo.dirName,...
     traceIndex,behav.vidTimes,false);
 %remove any drift by adding frames when fps > intended fps  (crude)
@@ -282,16 +283,21 @@ for frameIdx=1:numel(extraFrameIdx)
         boutFrames(extraFrameIdx(frameIdx)+frameIdx:end)];
 end
 boutFrames=boutFrames(1:end-numel(extraFrameIdx));
-% vidDims=size(boutFrames(1).cdata);
+vidDims=size(boutFrames(1).cdata);
 % figure('position',[1500 450  vidDims(2) vidDims(1)],'color','k');
 % movie(boutFrames,1,500);
 
+% movie(boutFrames,1,500);
 % with trace added
 % add audiovidDims=size(boutFrames(1).cdata);
-spikeTimes = movmean(ephys.rasters(cellNum,traceIndex),2);
+traceTS=behav.whiskers(bWhisk).timestamp(whiskingEpochsList.PixelIdxList{boutNum}+2);
+spikeIndex=ephys.timestamps>=traceTS(1) & ephys.timestamps<=traceTS(end);
+% spikeTimes = movmean(ephys.rasters(cellNum,int32(traceIndex*1000)),2);
+spikeTimes = movmean(ephys.rasters(cellNum,spikeIndex(1:size(ephys.rasters,2))),2);
 spikeTimes = logical(spikeTimes(1:2:end));
 figure('position',[500 450  vidDims(2) vidDims(1)],'color','k');
-boutFrames=FrameByFrame_Overlay(boutFrames,[whiskers.phase(traceIndex(1:2:end));spikeTimes]); %whisker.angle
+boutFrames=FrameByFrame_Overlay(boutFrames,vertcat(whiskers(bWhisk).phase...
+    (whiskingEpochsList.PixelIdxList{boutNum}(1:2:end)+2),spikeTimes)); %whisker.angle
 
 %add audio for a given cell, given speed
 slowFactor=20; %500/25
@@ -299,7 +305,7 @@ slowFactor=20; %500/25
 % Code perso
 % wBoutAudio=WhiskingBoutAudio(ephys.rasters(cellNum,traceIndex(1:5000)),1000,20*slowFactor);
 % FacePro
-wBoutAudio = FacePro.MakeSpikeAudio(ephys.rasters(cellNum,traceIndex(1:5000)),...
+wBoutAudio = FacePro.MakeSpikeAudio(ephys.rasters(cellNum,spikeIndex(1:size(ephys.rasters,2))),... %traceIndex(1:5000))
     slowFactor*10, [1 2500], 1000);
 %
 % samplingRatio=round(numel(traceIndex)/numel(boutFrames));

@@ -25,12 +25,13 @@ figure('color','white','position',[62,167,1307,727],...
 angleAxH = axes('Position',[0.1 0.5 0.8 0.4]); hold on;
 spikesAxH = axes('Position',[0.1 0.1 0.8 0.4]); hold on;
 
-%% plot whisker angle and setPoint
+%% plot whisker angle and setpoint
 axes(angleAxH)
 pH{1}=plot(whisker.timestamp,whisker.angle,'color',cmap(1,:),'linewidth',1.2);
 if ~isempty(breathing)
     baseSP=mode(round(whisker.setPoint/10)*10);
-    pH{2}=plot(breathing.ts,breathing.data+baseSP,'color',[cmap(2,:) 0.5],'linewidth',1.2);
+    plot(whisker.timestamp,whisker.setPoint,'color',[cmap(2,:) 0.5],'linewidth',1.2);
+    pH{2}=plot(breathing.ts,breathing.data+baseSP,'color',[cmap(3,:) 0.5],'linewidth',1.2);
 else
     pH{2}=plot(whisker.timestamp,whisker.setPoint,'color',[cmap(2,:) 0.5],'linewidth',1.2);
 end

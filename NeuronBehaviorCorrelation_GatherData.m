@@ -1,6 +1,6 @@
 function [allDataFileNames,targetDir]=NeuronBehaviorCorrelation_GatherData(vararg)
 
-% Gather data for analysis of correlation between bursts/spike rate 
+% Gather data for analysis of correlation between bursts/spike rate
 % and periodic behaviors (whisking, breathing)
 
 %% Directory structure assumed be
@@ -46,7 +46,7 @@ spikeSortingFiles=spikeSortingFiles(~cellfun(@(flnm) contains(flnm,{'DeepCut','W
 
 %% Spike waveforms
 spikeWaveformFiles = cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
-    {'*_filt.jrc'},'UniformOutput', false);
+    {'*_wF.mat','*_filt.jrc'},'UniformOutput', false);
 spikeWaveformFiles=vertcat(spikeWaveformFiles{~cellfun('isempty',spikeWaveformFiles)});
 
 %% Ephys recording data files
@@ -58,7 +58,7 @@ ephysTraceFiles=ephysTraceFiles(cellfun(@(flnm) contains(flnm,{'_export';'_trace
 
 %% Recording info
 infoFiles = cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
-    {'*info*'},'UniformOutput', false);
+    {'*info*','*Info*'},'UniformOutput', false);
 infoFiles=vertcat(infoFiles{~cellfun('isempty',infoFiles)});
 
 %% Probe file (may be needed for channel map, etc)
@@ -76,7 +76,7 @@ if isempty(whiskerFiles{:})
         {'*.csv','whiskerTrackingData'},'UniformOutput', false);
     whiskerFiles=vertcat(whiskerFiles{~cellfun('isempty',whiskerFiles)});
     whiskerFiles=whiskerFiles(~cellfun(@(flnm) contains(flnm,{'trial';'analysis'}),...
-    {whiskerFiles.name}));
+        {whiskerFiles.name}));
     if ~isempty(whiskerFiles)
         ConvertWhiskerData;
         whiskerFiles=cellfun(@(fileFormat) dir([startingDir filesep '**' filesep fileFormat]),...
@@ -137,9 +137,9 @@ allDataFiles=struct('spikeSortingFiles',spikeSortingFiles,...
     'rotaryencoderFiles', rotaryencoderFiles);
 adf_fn=fields(allDataFiles);
 for dataFileNum=1:numel(adf_fn)
-    if isempty(allDataFiles.(adf_fn{dataFileNum})); continue; end
-    [~,dateSort]=sort({allDataFiles.(adf_fn{dataFileNum}).date});
-    allDataFiles.(adf_fn{dataFileNum})=allDataFiles.(adf_fn{dataFileNum})(dateSort(dateSort==max(dateSort)));
+    if isempty(allDataFiles.(adf_fn{dataFileNum})); continue; end    
+    [~,dateSort]=sort(datetime({allDataFiles.(adf_fn{dataFileNum}).date},'InputFormat','dd-MMM-uuuu HH:mm:ss'),'descend');
+    allDataFiles.(adf_fn{dataFileNum})=allDataFiles.(adf_fn{dataFileNum})(dateSort(1));
     allDataFiles.(adf_fn{dataFileNum}).exportname=allDataFiles.(adf_fn{dataFileNum}).name;
 end
 % mark spike and recording data as such
@@ -154,28 +154,80 @@ allDataFiles.(adf_fn{2}).exportname=...
 % try creating folder within Analysis folder: find common file part
 allDataFileNames=cellfun(@(fName) getfield(allDataFiles,{1},fName,{1},'exportname'),...
     adf_fn(~cellfun(@(fName) isempty(allDataFiles.(fName)),adf_fn)),'UniformOutput', false);
- %exclude probe file name
+%exclude probe file name
 fileNames=allDataFileNames(~cellfun(@(fName) contains(fName,{'Probe','.prb'}),allDataFileNames));
 commonStr = GetCommonString(fileNames);
 if ~isempty(commonStr)
     commonStr=regexprep(commonStr,'[^a-zA-Z0-9]+$','');
 end
-targetDir=fullfile(directoryHierarchy{1:end-1},'Analysis',commonStr);
-if ~exist(targetDir,'dir')
-    mkdir(targetDir);
-end
+
+
+outDirTemplate=fullfile(directoryHierarchy{1:end-1},'Analysis',commonStr);
+conn=jsondecode(fileread(fullfile(fileparts(mfilename('fullpath')),'NESE_connection.json')));
 
 for dataFileNum=1:numel(adf_fn)
     if isempty(allDataFiles.(adf_fn{dataFileNum})); continue; end
-    copyfile(fullfile(allDataFiles.(adf_fn{dataFileNum}).folder,...
-        allDataFiles.(adf_fn{dataFileNum}).name),...
-        fullfile(targetDir,... %directoryHierarchy{1:end-1},'Analysis',...
-        allDataFiles.(adf_fn{dataFileNum}).exportname));
+    fileName = allDataFiles.(adf_fn{dataFileNum}).name;
+    %% make a local copy to Analysis folder
+    
+    if strcmp(allDataFiles.(adf_fn{dataFileNum}).folder(1),{'Z';'Y'})
+        % files on server:     %     copyfile too slow on FSTP - use scp. 
+        % Make sure that ssh-agent is running! https://gist.github.com/danieldogeanu/16c61e9b80345c5837b9e5045a701c99
+        inDir=[replace(allDataFiles.(adf_fn{dataFileNum}).folder,...
+            allDataFiles.(adf_fn{dataFileNum}).folder(1:3),...
+            [conn.userName '@' conn.hostName ':' conn.labDir]) filesep];
+        inDir=replace(inDir,'\','/');
+        outDir=[replace(outDirTemplate,outDirTemplate(1:3),...
+            'D:\') filesep];
+        %     outDir=replace(outDir,'SpikeSorting','Analysis');
+        [outDir,targetDir] = deal(replace(outDir,'Ephys\',''));
+        if ~exist(outDir,'dir')
+            mkdir(outDir);
+        end
+        
+        command = ['scp ' inDir fileName ' ' outDir];
+        % execute copy to Analysis folder
+        system(command);
+        
+        %% server copy with ssh
+        inDir=[replace(allDataFiles.(adf_fn{dataFileNum}).folder,...
+            allDataFiles.(adf_fn{dataFileNum}).folder(1:3),...
+            conn.labDir) filesep];
+        inDir=replace(inDir,'\','/');
+        outDir=[replace(outDirTemplate,outDirTemplate(1:3),...
+            conn.labDir) filesep];
+        outDir=replace(outDir,'\','/');
+        if ~exist(outDir,'dir')
+            mkdir(outDir);
+        end
+        
+        % created satori2 shortcut in .ssh/config file
+        command = ['ssh satori2 "cp ' inDir fileName ' ' outDir fileName '"']; %mv is faster, if moving file is ok
+        system(command);
+        
+    else
+        %% file already on local computer
+        % just copy it to Analysis folder
+        targetDir = outDirTemplate;
+        if ~exist(outDirTemplate,'dir')
+            mkdir(outDirTemplate)
+        end
+        copyfile(fullfile(allDataFiles.(adf_fn{dataFileNum}).folder,...
+            allDataFiles.(adf_fn{dataFileNum}).name),...
+            fullfile(outDirTemplate,allDataFiles.(adf_fn{dataFileNum}).exportname));
+        
+        %% server side
+        % upload a copy to Analysis folder
+        outDir=[replace(allDataFiles.(adf_fn{dataFileNum}).folder,...
+            allDataFiles.(adf_fn{dataFileNum}).folder(1:3),...
+            [conn.userName '@' conn.hostName ':' conn.labDir]) filesep];
+        outDir=replace(outDir,'SpikeSorting','Analysis');
+        outDir=replace(outDir,'Vincent','Vincent\Ephys');
+        outDir=replace(outDir,'\','/');
+        
+        command = ['scp ' fullfile(allDataFiles.(adf_fn{dataFileNum}).folder,fileName) ' ' outDir];
+%         command = ['ssh satori2 "mkdir ' outDir '"']; %create directory if doesn't exist
+        system(command);
+    end
+    
 end
-
-
-
-
-
-
-

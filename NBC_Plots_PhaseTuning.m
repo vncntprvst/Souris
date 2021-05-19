@@ -15,20 +15,33 @@ else; recName='PhaseTuning_polarPlot'; end
 % spikeRasters = ephysData.rasters(ephysData.selectedUnits,dataMask);
 % spikeRate=ephysData.spikeRate(ephysData.selectedUnits,dataMask);
 %% Data masking: look at each whisking epoch
+wEpochs.behav=bwconncomp(dataMask.behav);
+% mask epochs with short whisking bouts
+durationThd=cellfun(@(x) length(x),wEpochs.behav.PixelIdxList)>=3000;
+dataMask.behav(vertcat(wEpochs.behav.PixelIdxList{~durationThd}))=false;
+wEpochs.behav.PixelIdxList=wEpochs.behav.PixelIdxList(durationThd);
+if splitEpochs
+    wEpochs.behav.NumObjects=sum(durationThd);
+else
+    wEpochs.behav.PixelIdxList={vertcat(wEpochs.behav.PixelIdxList{:})};
+    wEpochs.behav.NumObjects=1;
+end
+% do the same for ephys data
+wEpochs.ephys=bwconncomp(dataMask.ephys);
+dataMask.ephys(vertcat(wEpochs.ephys.PixelIdxList{~durationThd}))=false;
+wEpochs.ephys.PixelIdxList=wEpochs.ephys.PixelIdxList(durationThd);
+if splitEpochs
+    wEpochs.ephys.NumObjects=sum(durationThd);
+else
+    wEpochs.ephys.PixelIdxList={vertcat(wEpochs.ephys.PixelIdxList{:})};
+    wEpochs.ephys.NumObjects=1;
+end
+
 spikeRasters = ephysData.rasters(ephysData.selectedUnits,:);
 spikeRate=ephysData.spikeRate(ephysData.selectedUnits,:);
-wEpochs=bwconncomp(dataMask);
-durationThd=cellfun(@(x) length(x),wEpochs.PixelIdxList)>4000;
-dataMask(vertcat(wEpochs.PixelIdxList{~durationThd}))=false;
-wEpochs.PixelIdxList=wEpochs.PixelIdxList(durationThd);
-if splitEpochs
-    wEpochs.NumObjects=sum(durationThd);
-else
-    wEpochs.PixelIdxList={vertcat(wEpochs.PixelIdxList{:})};
-    wEpochs.NumObjects=1;
-end
-% [~,sortDuration]=sort(cellfun(@(x) length(x),wEpochs.PixelIdxList),'descend');
-% wEpochs.PixelIdxList=wEpochs.PixelIdxList(sortDuration);
+
+% [~,sortDuration]=sort(cellfun(@(x) length(x),wEpochs.behav.PixelIdxList),'descend');
+% wEpochs.behav.PixelIdxList=wEpochs.behav.PixelIdxList(sortDuration);
 
 %% normalized whisker angle
 if false
@@ -66,25 +79,32 @@ if false
     %             ylabel('Normalized whisker angle')
 end
 
-
 for unitNum=1:size(spikeRasters,1)
-    numWepochs=wEpochs.NumObjects;
-    if wEpochs.NumObjects>1
-        figure('Color','white','position',[165         153        1143         911])
-    else
-        figure('Color','white','position',[1035         224         802         672]);
+    
+    if mean(spikeRate(unitNum,:)) < 0.5
+        continue
     end
-    %     subplot(4,numWepochs,1:numWepochs); hold on;
+    
+    numEpochs=wEpochs.behav.NumObjects;
+
+    %     subplot(4,numEpochs,1:numEpochs); hold on;
     %     plot(whiskerAngle,'k');
-    %     if wEpochs.NumObjects>1
+    %     if wEpochs.behav.NumObjects>1
     %         plot(dataMask*nanstd(whiskerAngle)+nanmean(whiskerAngle),'r','linewidth',1.5)
     %     end
     %     set(gca,'tickdir','out'); axis tight
     %     title({['Unit ' num2str(ephysData.selectedUnits(unitNum)) ' - ' recName];
     %         ['Tuning to ' labels ' phase']},'interpreter','none');
-    for wEpochNum=1:numWepochs
+    for wEpochNum=1:numEpochs
+%         if wEpochs.behav.NumObjects>1
+%             figure('Color','white','position',[165         153        1143         911])
+%         else
+            figure('name',['Unit ' num2str(ephysData.selectedUnits(unitNum)) ' - ' recName ...
+                ' - Tuning to ' labels ' phase'],'Color','white','position',...
+                [214   108   747   754]);
+%         end
         clearvars eWhiskerPhase sp2H sp3H sp4H
-        eWhiskerPhase=whiskerPhase(wEpochs.PixelIdxList{wEpochNum});
+        eWhiskerPhase=whiskerPhase(wEpochs.behav.PixelIdxList{wEpochNum});
         
         %         ptWhisks=bwconncomp(eWhiskerPhase>0);
         %% probability density function of phase for spiking events
@@ -94,10 +114,10 @@ for unitNum=1:size(spikeRasters,1)
         centers = mean([ edges(1:end-1); edges(2:end) ]);
         [ ~, ~, phaseBins ] = histcounts(eWhiskerPhase, edges);
         samplingRate=1000; %change in case this isn't at 1kHz SR
-        phaseTuning=nan(size(spikeRate,1),numWepochs);
+        phaseTuning=nan(size(spikeRate,1),numEpochs);
         
         try
-            unitSpikeEvent=spikeRasters(unitNum,wEpochs.PixelIdxList{wEpochNum});
+            unitSpikeEvent=spikeRasters(unitNum,wEpochs.ephys.PixelIdxList{wEpochNum});
             attribPhaseBin = phaseBins(logical(unitSpikeEvent));
             %     number of spikes in each phase bin N(?k|spike)
             spikePhaseBinCount=histcounts(attribPhaseBin,[1 1+unique(phaseBins)]);%         [spikePhaseBinCount,uniqueSpikePhaseBins]=hist(phaseVals,unique(phaseVals));
@@ -120,20 +140,20 @@ for unitNum=1:size(spikeRasters,1)
             
             %% plot
             % plot epoch angle trace
-            %             if wEpochs.NumObjects>1
-            %                 subplot(4,numWepochs,1:numWepochs);
-            %                 plot(wEpochs.PixelIdxList{wEpochNum},eWhiskerAngle,'b')
+            %             if wEpochs.behav.NumObjects>1
+            %                 subplot(4,numEpochs,1:numEpochs);
+            %                 plot(wEpochs.behav.PixelIdxList{wEpochNum},eWhiskerAngle,'b')
             %             end
             
             %plot PDF
-            sp2H=subplot(2,2,4); hold on ; %(4,numWepochs,numWepochs+wEpochNum)
-            plot(linspace(-pi,pi, numBins+1),spikePhasePDF,'linewidth',1.2,'Color', [0 0 0]); %centers
-            plot(linspace(-pi,pi, numBins+1),phasePDF,'linewidth',1.2,'Color', [0 0 0 0.5]); %centers
+            sp2H=subplot(2,2,4); hold on ; %(4,numEpochs,numEpochs+wEpochNum)
+            plot(linspace(-pi,pi, numBins+1),smooth(spikePhasePDF),'linewidth',1.2,'Color', [0 0 0]); %centers
+            plot(linspace(-pi,pi, numBins+1),smooth(phasePDF),'linewidth',1.2,'Color', [0 0 0 0.5]); %centers
             set(gca,'ytick',0:0.05:1,...
                 'xlim',[-pi pi],'xtick',[-pi 0 pi],'xticklabel',{'-\pi','0','\pi'},...
                 'tickdir','out');
-            axis tight
-            if wEpochs.NumObjects==1
+%             axis tight
+            if wEpochs.behav.NumObjects==1
                 %                 'ylim',[0 0.1]
                 %               ylabel('PDF')
             end
@@ -153,13 +173,13 @@ for unitNum=1:size(spikeRasters,1)
             
             % for unitNum=1:size(spikeRate,1)
             clearvars unitSpikeRate
-            eSpikeRate= spikeRate(unitNum,wEpochs.PixelIdxList{wEpochNum});
+            eSpikeRate= spikeRate(unitNum,wEpochs.ephys.PixelIdxList{wEpochNum});
             [binMeanSpikeRate,binSESpikeRate]=deal(nan(numBins*2,1));
             %             chunkLength=2000;
             %             numChunks=floor(numel(unitSpikeRate)/chunkLength);
             % Kyle's plot
             %             figure('Color','w');  box off
-            sp3H=subplot(2,2,3);hold on; %(4,numWepochs,numWepochs*2+wEpochNum)
+            sp3H=subplot(2,2,3);hold on; %(4,numEpochs,numEpochs*2+wEpochNum)
             %             for chunkNum=4:numChunks
             clearvars binMeanSpikeRate binSESpikeRate
             %                 chunkIndex=(chunkNum-1)*chunkLength+1:chunkNum*chunkLength;
@@ -182,10 +202,18 @@ for unitNum=1:size(spikeRasters,1)
             %           rescale
             rsbinMeanSpikeRate=sum(reshape([binMeanSpikeRate(2:end),binMeanSpikeRate(1)],2,numBins))/2;
             rsbinMeanSpikeRate=[rsbinMeanSpikeRate(end) rsbinMeanSpikeRate];
-            
+            rsbinSESpikeRate=sum(reshape([binSESpikeRate(2:end),binSESpikeRate(1)],2,numBins))/2;
+            rsbinSESpikeRate=[rsbinSESpikeRate(end) rsbinSESpikeRate];
+%                 rsbinSESpikeRate=std(waveforms(~onSpikes,:))/ sqrt(size(waveforms(~onSpikes,:),2)); %standard error of the mean
+%     rsbinSESpikeRate = rsbinSESpikeRate * 1.96; % 95% of the data will fall within 1.96 standard deviations of a normal distribution
+
             %             shadedErrorBar(centers, binMeanSpikeRate,binSESpikeRate, 'lineprops','k');
-            plot(linspace(-pi,pi, numBins+1), rsbinMeanSpikeRate, 'LineWidth',2) %centers %,'color',cmap(unitNum,:));%'k'
-            %             end
+            plot(linspace(-pi,pi, numBins+1), rsbinMeanSpikeRate,'Color','k', 'LineWidth',2) %centers %,'color',cmap(unitNum,:));%'k'
+            patch([linspace(-pi,pi, numBins+1),linspace(pi,-pi, numBins+1)],...
+                [rsbinMeanSpikeRate-rsbinSESpikeRate,fliplr(rsbinMeanSpikeRate+rsbinSESpikeRate)],...
+                'k','EdgeColor','none','FaceAlpha',0.2); %cmap(cellNum,:)
+
+    %             end
             %             xlabel({'Phase  (rad)'; '0 = Max Protraction'}, 'FontSize', 18);
             %             ylabel('Firing rate (Spk/s)', 'FontSize', 18);
             axis tight
@@ -195,7 +223,7 @@ for unitNum=1:size(spikeRasters,1)
             set(gca,'xlim',[-pi pi],'xtick',[-pi 0 pi],'xticklabel',{'-\pi','0','\pi'},...
                 'tickdir','out');
             box off
-            if wEpochs.NumObjects==1
+            if wEpochs.behav.NumObjects==1
                 xlabel('Phase (radians)')
                 ylabel('Spike rate (Hz)')
             end
@@ -237,7 +265,7 @@ for unitNum=1:size(spikeRasters,1)
             %         subplot(ceil(size(spikeRate,1)/4),4,unitNum)
             %     end
             
-            sp4H=subplot(2,2,[1 2]); %subplot(2,1,2); %(4,numWepochs,numWepochs*3+wEpochNum)
+            sp4H=subplot(2,2,[1 2]); %subplot(2,1,2); %(4,numEpochs,numEpochs*3+wEpochNum)
             polarhistogram(thetas,edges,'Displaystyle','bar',...
                 'Normalization','count','LineWidth',2,...
                 'EdgeColor',phEdgeColor,'FaceColor',phFaceColor,...
@@ -259,8 +287,8 @@ for unitNum=1:size(spikeRasters,1)
         end
     end
     %                 spPos=get(sp2H,'position');
-    %             spPos(1)=0.1+((wEpochNum-1)*(1/numWepochs));
-    %             spPos(3)=1/numWepochs;
+    %             spPos(1)=0.1+((wEpochNum-1)*(1/numEpochs));
+    %             spPos(3)=1/numEpochs;
     %             set(sp2H,'position',spPos);
     %
 end

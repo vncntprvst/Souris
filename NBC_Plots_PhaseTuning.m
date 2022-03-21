@@ -2,7 +2,6 @@ function phaseTuning=NBC_Plots_PhaseTuning(whiskerAngle,whiskerPhase,ephysData,.
     dataMask,labels,splitEpochs,saveFig)
 % whiskingPhase in radians
 % spikeRate in Hz
-% Kyle's plot adapted from UnitExplorer GetTuning
 
 colormapSeed=lines; cmap=[colormapSeed(1:7,:);(colormapSeed+flipud(copper))/2;autumn];
 

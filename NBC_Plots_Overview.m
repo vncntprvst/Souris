@@ -1,6 +1,25 @@
-function NBC_Plots_Overview(whisker,whiskingEpochs,breathing, ephys,TTLtimes,zoomin,saveFig)
+function NBC_Plots_Overview(whiskers,whiskingEpochs,breathing,ephys,TTLtimes,opt)
 %% define figure colormap
 cmap=lines;cmap=[cmap(1:7,:);(lines+flipud(copper))/2;autumn];
+
+% if there's data about contralateral whiskers, keep best
+switch opt.xpType
+    case 'GFE3' % for GFE3 experiments
+        opoWhiskerIdx=[whiskers.bestWhisker]==true & contains({whiskers.side},'left');
+        opoWhisker=whiskers(opoWhiskerIdx);
+        whisker=whiskers([whiskers.bestWhisker]==true & contains({whiskers.side},'right'));
+        whiskingEpochs=whiskingEpochs{1};
+        wLabels={'Contra whisker angle','Ipsi whisker angle'};
+    case 'asymmetry'
+        opoWhiskerIdx=[whiskers.bestWhisker]==true & contains({whiskers.side},'right');
+        opoWhisker=whiskers(opoWhiskerIdx);
+        whisker=whiskers([whiskers.bestWhisker]==true & contains({whiskers.side},'left'));
+        whiskingEpochs=whiskingEpochs{2};
+        wLabels={'Ipsi whisker angle','Contra whisker angle'};
+    otherwise
+        whisker=whiskers([whiskers.bestWhisker]==true & contains({whiskers.side},'left'));
+end
+
 
 % find base setpoint and redress values if needed
 baseSP=mode(round(whisker.setPoint/10)*10);
@@ -12,10 +31,15 @@ end
 %% allocate
 rasters=ephys.rasters(ephys.selectedUnits,:);
 scaleF=ceil(max(whisker.angle));
-if ~exist('TTLtimes','var') | isempty(TTLtimes)
+if ~exist('TTLtimes','var') || isempty(TTLtimes)
     TTLtimes=[]; 
 else
-    pulseDur=0.01; 
+    if size(TTLtimes,1)>1
+        pulseDur=mode(diff(TTLtimes));
+        TTLtimes=TTLtimes(1,:);
+    else
+        pulseDur=0.01; 
+    end
 %     pulseDur=mode(diff(TTLtimes)); 
 end
 
@@ -32,6 +56,8 @@ if ~isempty(breathing)
     baseSP=mode(round(whisker.setPoint/10)*10);
     plot(whisker.timestamp,whisker.setPoint,'color',[cmap(2,:) 0.5],'linewidth',1.2);
     pH{2}=plot(breathing.ts,breathing.data+baseSP,'color',[cmap(3,:) 0.5],'linewidth',1.2);
+elseif exist('opoWhisker','var') && ~isempty(opoWhisker)
+    pH{2}=plot(opoWhisker.timestamp,opoWhisker.angle,'color',cmap(4,:),'linewidth',1.2);
 else
     pH{2}=plot(whisker.timestamp,whisker.setPoint,'color',[cmap(2,:) 0.5],'linewidth',1.2);
 end
@@ -57,6 +83,8 @@ set(gca,'xtick',[],'xcolor','none','TickDir','out','box','off');
 ylabel('whisker angle')
 if ~isempty(breathing)
     legend([pH{:}],{'Whisker angle','Breathing air flow','Protraction phase'},'location','southeast')
+elseif exist('opoWhisker','var') && ~isempty(opoWhisker)
+    legend([pH{:}],{wLabels{1},wLabels{2},'Protraction phase'},'location','southeast')
 else
     legend([pH{:}],{'Whisker angle','Whisker setpoint','Protraction phase'},'location','southeast')
 end
@@ -102,13 +130,13 @@ ylabel('unit number')
 linkaxes([angleAxH,spikesAxH],'x')
 
 % zoom in whisking epochs
-if zoomin
+if opt.zoomin
     wEpochs=bwconncomp(whiskingEpochs);
     viewStartPoint=round(wEpochs.PixelIdxList{1, 9}(1)/1000)*1000;
     set(gca,'xlim',[viewStartPoint viewStartPoint+2000])
 end
 %% save figure
-if saveFig
+if opt.saveFig
     savefig(gcf,['Overview_Whole_' ephys.recInfo.sessionName '.fig'])
     %     saveas(gcf,['Overview_Whole_' ephys.recName '.png'])
 end

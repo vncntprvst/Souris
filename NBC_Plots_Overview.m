@@ -18,6 +18,8 @@ switch opt.xpType
         wLabels={'Ipsi whisker angle','Contra whisker angle'};
     otherwise
         whisker=whiskers([whiskers.bestWhisker]==true & contains({whiskers.side},'left'));
+        whiskingEpochs=whiskingEpochs{2};
+        wLabels={'Ipsi whisker angle',' Whisker setpoint angle'};
 end
 
 

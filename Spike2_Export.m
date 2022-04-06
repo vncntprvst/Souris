@@ -1,4 +1,4 @@
-function spikes=Spike2_Export(dirName,fileName)
+function spikes=Spike2_Export(dirName,fileName,chNum)
 % dirName='D:\Vincent\vIRt57\vIRt57_0216';
 %'D:\Vincent\vIRt61\vIRt61_0302'
 
@@ -17,18 +17,18 @@ samplingRate=30000;
 allTraces=PreProcData(data,samplingRate,preprocOption);
 
 %% save channel of interest
-chNum=3;
+if ~exist('chNum','var'); chNum=3; end
 exportDir=fullfile(dirName,'SpikeSorting',fileName(1:end-4));
 cd(exportDir)
 if ~exist('Spike2Export','dir'); mkdir('Spike2Export'); end
 
 fileID = fopen(fullfile(exportDir,'Spike2Export',...
-    [fileName(1:end-4) '_' num2str(chNum) '.bin']),'w');
+    [fileName(1:end-4) '_Ch' num2str(chNum) '.bin']),'w');
 fwrite(fileID,allTraces(chNum,:),'int16');
 fclose(fileID);
 
 %% Load data
-fName=['vIRt57_0216_5732_Ch' num2str(chNum) '.mat'];
+fName=[fileName(1:end-4) '_Ch' num2str(chNum) '.mat'];
 spikes=LoadSpikes_Spike2(fName);
 
 if false
